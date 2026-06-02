@@ -1,0 +1,2 @@
+# ha-dashboard
+HA Dashboard
