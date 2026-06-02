@@ -1,0 +1,24 @@
+neo_dashboard:
+  # Activate in Home Assistant under Profile > Theme, or import from configuration.yaml.
+  primary-background-color: '#0f1128'
+  secondary-background-color: '#15193a'
+  primary-text-color: '#f6f7ff'
+  secondary-text-color: '#9ba4cd'
+  accent-color: '#2c9cff'
+  card-background-color: 'rgba(18, 22, 54, 0.72)'
+  ha-card-background: 'rgba(18, 22, 54, 0.72)'
+  ha-card-border-radius: '12px'
+  ha-card-box-shadow: 'none'
+  mush-card-primary-color: '#f6f7ff'
+  mush-card-secondary-color: '#9ba4cd'
+  mush-rgb-blue: '44, 156, 255'
+  mush-rgb-orange: '242, 154, 55'
+  modes:
+    dark:
+      neo-text: '#f6f7ff'
+      neo-muted: '#9ba4cd'
+      neo-orange: '#f29a37'
+      lovelace-background: >-
+        radial-gradient(circle at 48% 82%, rgba(104, 128, 255, .34), transparent 22%),
+        radial-gradient(circle at 12% 20%, rgba(37, 52, 143, .25), transparent 28%),
+        linear-gradient(180deg, #111329 0%, #0b0d25 100%)
