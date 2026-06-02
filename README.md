@@ -1,39 +1,71 @@
-# Home Assistant Neo Dashboard
+# HA Neo Dashboard
 
-Dieses Repository enthält ein Lovelace-Dashboard im dunklen, futuristischen Stil der Referenzgrafik: linke Systemspalte, zentrale Wohnzimmer-Szene, rechte runde Mess-/Lichtkarten und eine pillenförmige Navigation.
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=HOCHH4U5JUMP3R&repository=ha-dashboard&category=plugin)
 
-## Dateien
+![HA Neo Dashboard preview](docs/preview.svg)
 
-- `dashboards/neo-living-room-dashboard.yaml` – vollständige Lovelace-Ansicht mit Mushroom Cards, Button Cards, Gauges und Navigation.
-- `themes/neo-dashboard.yaml` – dunkles Theme mit radialem Glow, Kartenfarben und Mushroom-Farbvariablen.
+HA Neo Dashboard ist eine HACS-kompatible Lovelace-Dashboard-Card im dunklen, futuristischen Stil der Referenzgrafik: linke Systemspalte, zentrale Wohnzimmer-Szene, rechte runde Mess-/Lichtkarten und eine pillenförmige Navigation.
 
-## Voraussetzungen
+## HACS-Installation
 
-Installiere in Home Assistant am einfachsten über HACS:
+1. Öffne HACS in Home Assistant.
+2. Gehe zu **Frontend** bzw. **Dashboards**.
+3. Füge dieses Repository als benutzerdefiniertes Repository hinzu:
+   - Repository: `HOCHH4U5JUMP3R/ha-dashboard`
+   - Kategorie: `Dashboard`
+4. Installiere **HA Neo Dashboard**.
+5. Leere den Browser-Cache bzw. lade Home Assistant neu.
+6. Erstelle eine neue manuelle Lovelace-Karte mit `type: custom:ha-neo-dashboard`.
 
-- Mushroom Cards (`custom:mushroom-*`)
-- Button Card (`custom:button-card`)
-- Card Mod (`card_mod`)
-- Mini Graph Card (`custom:mini-graph-card`)
-- Layout Card (`custom:grid-layout`)
+HACS installiert die Ressource aus `dist/ha-dashboard.js`. Die Datei heißt bewusst wie das Repository, damit die HACS-Dashboard/Plugin-Struktur erkannt wird.
 
-## Installation
+## Beispiel-Konfiguration
 
-1. Kopiere `themes/neo-dashboard.yaml` in deinen Home-Assistant-Ordner `config/themes/`.
-2. Importiere das Theme in `configuration.yaml`:
+Eine vollständige Beispielkarte liegt unter `dist/neo-living-room-card.yaml`. Minimal reicht:
 
-   ```yaml
-   frontend:
-     themes: !include_dir_merge_named themes
-   ```
+```yaml
+type: custom:ha-neo-dashboard
+title: LIVING ROOM
+subtitle: Ground floor
+image: /local/neo-dashboard/living-room.png
+scene_entity: scene.living_room_evening
+temperature_entity: sensor.living_room_temperature
+humidity_entity: sensor.living_room_humidity
+```
 
-3. Starte Home Assistant neu und wähle im Benutzerprofil das Theme `neo_dashboard`.
-4. Lege unter `config/www/neo-dashboard/living-room.png` ein freigestelltes Wohnzimmer-Rendering ab. Dieses Bild wird in der zentralen `picture-elements`-Karte verwendet.
-5. Erstelle ein neues Dashboard im YAML-Modus oder füge die View aus `dashboards/neo-living-room-dashboard.yaml` in dein vorhandenes Lovelace-Dashboard ein.
-6. Ersetze die Beispiel-Entitäten, z. B. `sensor.living_room_temperature`, `light.living_room_all` und `scene.living_room_evening`, durch deine echten Home-Assistant-Entitäten.
+## Wohnzimmerbild
 
-## Anpassung
+Lege dein freigestelltes Wohnzimmer-Rendering in Home Assistant unter folgendem Pfad ab:
 
-- Die runden Karten werden über `button_card_templates.neo_gauge` und `button_card_templates.neo_gauge_controls` gerendert.
-- Farben, Hintergrund und Textkontraste liegen im Theme und in den CSS-Variablen `--neo-text`, `--neo-muted` und `--neo-orange`.
-- Die Hauptanordnung wird über `custom:grid-layout` gesteuert und besitzt einen einfachen Mobile-Breakpoint unter 1000 px Breite.
+```text
+config/www/neo-dashboard/living-room.png
+```
+
+In Lovelace ist es anschließend über `/local/neo-dashboard/living-room.png` erreichbar. Du kannst den Pfad über die Option `image` ändern.
+
+## Wichtige Optionen
+
+| Option | Zweck |
+| --- | --- |
+| `scene_entity` | Szene, die beim Klick auf den zentralen SCENE-Button gestartet wird. |
+| `temperature_entity` / `humidity_entity` | Sensoren für die oberen Gauges und Quick-Chips. |
+| `heating_value_entity` | Numerischer Sensor für den Heizungs-Gauge-Wert. |
+| `all_lights_value_entity` | Numerischer Sensor für den Gesamtlicht-Gauge-Wert. |
+| `systems` | Liste für die linke Systemstatus-Spalte. |
+| `metrics` | Liste für die unteren Balkenwerte in der linken Spalte. |
+| `nav` | Navigationseinträge und Zielpfade für die untere Leiste. |
+
+## Optionales Theme
+
+Das alte Theme bleibt unter `themes/neo-dashboard.yaml` enthalten. Wenn du es zusätzlich nutzen möchtest, kopiere es in deinen Home-Assistant-Ordner `config/themes/` oder verwende dieses Repository separat als HACS-Theme-Quelle.
+
+Aktiviere Themes in `configuration.yaml`:
+
+```yaml
+frontend:
+  themes: !include_dir_merge_named themes
+```
+
+## Entwicklung
+
+Die installierbare HACS-Card befindet sich in `dist/ha-dashboard.js`. Zusätzliche Beispiel-YAML-Dateien liegen ebenfalls in `dist/`, damit alle für die Dashboard-Resource relevanten Dateien am HACS-kompatiblen Ort liegen.

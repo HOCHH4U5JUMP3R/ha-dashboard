@@ -1,0 +1,73 @@
+# Example Lovelace card configuration for the HACS-installed resource.
+# Add a Manual card and paste this configuration after installing the repository with HACS.
+type: custom:ha-neo-dashboard
+title: LIVING ROOM
+subtitle: Ground floor
+image: /local/neo-dashboard/living-room.png
+scene_entity: scene.living_room_evening
+temperature_entity: sensor.living_room_temperature
+humidity_entity: sensor.living_room_humidity
+heating_entity: climate.living_room
+heating_value_entity: sensor.living_room_target_temperature
+all_lights_entity: light.living_room_all
+all_lights_value_entity: sensor.living_room_light_level
+floor_lamp_entity: light.floor_lamp
+floor_lamp_value_entity: sensor.floor_lamp_brightness
+ceiling_spots_entity: light.ceiling_spots
+ceiling_spots_value_entity: sensor.ceiling_spots_brightness
+systems:
+  - icon: mdi:check-circle
+    name: ALARM
+    label: Not armed
+    color: muted
+  - icon: mdi:check-circle
+    name: SECURITY CAMERAS
+    label: Recording
+    color: muted
+  - icon: mdi:alert
+    name: BACKUPS
+    label: Cloud backup outdated
+    color: orange
+  - icon: mdi:check-circle
+    name: UPS
+    label: 100% / 94m
+    color: muted
+metrics:
+  - name: CPU_Centauri (avg. 24h)
+    entity: sensor.centauri_cpu
+    max: 100
+  - name: 'Storage: Ganymede'
+    entity: sensor.ganymede_storage
+    max: 100
+  - name: 'Storage: Metis'
+    entity: sensor.metis_storage
+    max: 100
+  - name: Starman
+    entity: sensor.starman_speed
+    max: 5000
+    unit: km/h
+nav:
+  - icon: mdi:rocket-launch
+    label: Overview
+    path: /lovelace/living-room
+  - icon: mdi:heat-wave
+    label: Climate
+    path: /lovelace/climate
+  - icon: mdi:lightbulb-on-outline
+    label: Lights
+    path: /lovelace/lights
+  - icon: mdi:shield-home-outline
+    label: Security
+    path: /lovelace/security
+  - icon: mdi:play-box-outline
+    label: Media
+    path: /lovelace/media
+  - icon: mdi:router-wireless-settings
+    label: Maintenance
+    path: /lovelace/maintenance
+  - icon: mdi:map-marker-radius-outline
+    label: Presence
+    path: /lovelace/presence
+  - icon: mdi:database-cog-outline
+    label: Systems
+    path: /lovelace/systems
