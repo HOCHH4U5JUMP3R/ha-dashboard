@@ -1,73 +1,376 @@
-# Example Lovelace card configuration for the HACS-installed resource.
-# Add a Manual card and paste this configuration after installing the repository with HACS.
-type: custom:ha-neo-dashboard
-title: LIVING ROOM
-subtitle: Ground floor
-image: /local/neo-dashboard/living-room.png
-scene_entity: scene.living_room_evening
-temperature_entity: sensor.living_room_temperature
-humidity_entity: sensor.living_room_humidity
-heating_entity: climate.living_room
-heating_value_entity: sensor.living_room_target_temperature
-all_lights_entity: light.living_room_all
-all_lights_value_entity: sensor.living_room_light_level
-floor_lamp_entity: light.floor_lamp
-floor_lamp_value_entity: sensor.floor_lamp_brightness
-ceiling_spots_entity: light.ceiling_spots
-ceiling_spots_value_entity: sensor.ceiling_spots_brightness
-systems:
-  - icon: mdi:check-circle
-    name: ALARM
-    label: Not armed
-    color: muted
-  - icon: mdi:check-circle
-    name: SECURITY CAMERAS
-    label: Recording
-    color: muted
-  - icon: mdi:alert
-    name: BACKUPS
-    label: Cloud backup outdated
-    color: orange
-  - icon: mdi:check-circle
-    name: UPS
-    label: 100% / 94m
-    color: muted
-metrics:
-  - name: CPU_Centauri (avg. 24h)
-    entity: sensor.centauri_cpu
-    max: 100
-  - name: 'Storage: Ganymede'
-    entity: sensor.ganymede_storage
-    max: 100
-  - name: 'Storage: Metis'
-    entity: sensor.metis_storage
-    max: 100
-  - name: Starman
-    entity: sensor.starman_speed
-    max: 5000
-    unit: km/h
-nav:
-  - icon: mdi:rocket-launch
-    label: Overview
-    path: /lovelace/living-room
-  - icon: mdi:heat-wave
-    label: Climate
-    path: /lovelace/climate
-  - icon: mdi:lightbulb-on-outline
-    label: Lights
-    path: /lovelace/lights
-  - icon: mdi:shield-home-outline
-    label: Security
-    path: /lovelace/security
-  - icon: mdi:play-box-outline
-    label: Media
-    path: /lovelace/media
-  - icon: mdi:router-wireless-settings
-    label: Maintenance
-    path: /lovelace/maintenance
-  - icon: mdi:map-marker-radius-outline
-    label: Presence
-    path: /lovelace/presence
-  - icon: mdi:database-cog-outline
-    label: Systems
-    path: /lovelace/systems
+# Fullscreen Lovelace view example for the HACS-installed resource.
+# Paste this into a YAML dashboard, or copy only the card config into a Manual card.
+title: Neo Home
+views:
+  - title: Neo Dashboard
+    path: neo-dashboard
+    panel: true
+    cards:
+      - type: custom:ha-neo-dashboard
+        title: LIVING ROOM
+        subtitle: Ground floor
+        background_image: /local/neo-dashboard/background.jpg
+        image: /local/neo-dashboard/living-room.png
+        default_page: overview
+        scene_label: SCENE
+        scene_entity: scene.living_room_evening
+        temperature_entity: sensor.living_room_temperature
+        humidity_entity: sensor.living_room_humidity
+        all_lights_entity: light.living_room_all
+        top_tabs:
+          - label: SYSTEMS
+            tap_action:
+              action: none
+          - label: MAINTENANCE
+            tap_action:
+              action: navigate
+              navigation_path: /lovelace/maintenance
+        systems:
+          - icon: mdi:shield-check
+            name: ALARM
+            entity: alarm_control_panel.home_alarm
+            label: Not armed
+            color: muted
+            tap_action:
+              action: more-info
+              entity: alarm_control_panel.home_alarm
+          - icon: mdi:cctv
+            name: SECURITY CAMERAS
+            entity: camera.front_door
+            label: Recording
+            color: muted
+            tap_action:
+              action: more-info
+              entity: camera.front_door
+          - icon: mdi:cloud-alert
+            name: BACKUPS
+            entity: sensor.backup_state
+            label: Cloud backup outdated
+            color: orange
+            tap_action:
+              action: more-info
+              entity: sensor.backup_state
+          - icon: mdi:battery-high
+            name: UPS
+            entity: sensor.ups_battery
+            label: 100% / 94m
+            color: muted
+            tap_action:
+              action: more-info
+              entity: sensor.ups_battery
+        metrics:
+          - name: CPU_Centauri (avg. 24h)
+            entity: sensor.centauri_cpu
+            max: 100
+            tap_action:
+              action: more-info
+              entity: sensor.centauri_cpu
+          - name: 'Storage: Ganymede'
+            entity: sensor.ganymede_storage
+            max: 100
+            tap_action:
+              action: more-info
+              entity: sensor.ganymede_storage
+          - name: 'Storage: Metis'
+            entity: sensor.metis_storage
+            max: 100
+            tap_action:
+              action: more-info
+              entity: sensor.metis_storage
+          - name: Starman
+            entity: sensor.starman_speed
+            max: 5000
+            unit: km/h
+            tap_action:
+              action: more-info
+              entity: sensor.starman_speed
+        gauges:
+          - name: TEMP
+            entity: sensor.living_room_temperature
+            unit: °C
+            max: 30
+            color: '#aeb5e9'
+            label: Comfortable
+            tap_action:
+              action: more-info
+              entity: sensor.living_room_temperature
+          - name: HUMIDITY
+            entity: sensor.living_room_humidity
+            unit: '%'
+            max: 100
+            color: '#f29a37'
+            label: Dry
+            tap_action:
+              action: more-info
+              entity: sensor.living_room_humidity
+          - name: HEATING
+            entity: climate.living_room
+            value_entity: sensor.living_room_target_temperature
+            unit: °C
+            max: 30
+            color: '#2c9cff'
+            controls: ['-', '+']
+            tap_action:
+              action: more-info
+              entity: climate.living_room
+          - name: ALL LIGHTS
+            entity: light.living_room_all
+            value_entity: sensor.living_room_light_level
+            unit: '%'
+            max: 100
+            color: '#2c9cff'
+            controls: ['OFF', 'DIM']
+            tap_action:
+              action: toggle
+              entity: light.living_room_all
+          - name: FLOOR LAMP
+            entity: light.floor_lamp
+            value_entity: sensor.floor_lamp_brightness
+            unit: '%'
+            max: 100
+            color: '#2c9cff'
+            controls: ['OFF', 'DIM']
+            tap_action:
+              action: toggle
+              entity: light.floor_lamp
+          - name: CEILING SPOTS
+            entity: light.ceiling_spots
+            value_entity: sensor.ceiling_spots_brightness
+            unit: '%'
+            max: 100
+            color: '#2c9cff'
+            controls: ['ON', '']
+            tap_action:
+              action: toggle
+              entity: light.ceiling_spots
+        pages:
+          - id: overview
+            label: Overview
+            title: LIVING ROOM
+            subtitle: Ground floor
+            icon: mdi:rocket-launch
+            type: overview
+          - id: climate
+            label: Climate
+            title: CLIMATE
+            subtitle: Heating and air
+            icon: mdi:heat-wave
+            tiles:
+              - name: Heating
+                entity: climate.living_room
+                icon: mdi:radiator
+                tap_action:
+                  action: more-info
+                  entity: climate.living_room
+              - name: Boost heat
+                icon: mdi:fire
+                label: Set 22 °C
+                tap_action:
+                  action: call-service
+                  service: climate.set_temperature
+                  target:
+                    entity_id: climate.living_room
+                  data:
+                    temperature: 22
+              - name: Comfort scene
+                icon: mdi:home-thermometer
+                label: Run scene
+                tap_action:
+                  action: call-service
+                  service: scene.turn_on
+                  target:
+                    entity_id: scene.living_room_comfort
+              - name: Thermostat details
+                entity: sensor.living_room_temperature
+                icon: mdi:thermometer
+                tap_action:
+                  action: more-info
+                  entity: sensor.living_room_temperature
+          - id: lights
+            label: Lights
+            title: LIGHTS
+            subtitle: Room ambience
+            icon: mdi:lightbulb-on-outline
+            tiles:
+              - name: All lights
+                entity: light.living_room_all
+                icon: mdi:lightbulb-group
+                tap_action:
+                  action: toggle
+                  entity: light.living_room_all
+              - name: Floor lamp
+                entity: light.floor_lamp
+                icon: mdi:floor-lamp
+                tap_action:
+                  action: toggle
+                  entity: light.floor_lamp
+              - name: Ceiling spots
+                entity: light.ceiling_spots
+                icon: mdi:ceiling-light-multiple
+                tap_action:
+                  action: toggle
+                  entity: light.ceiling_spots
+              - name: Movie light
+                icon: mdi:movie-open
+                label: Run scene
+                tap_action:
+                  action: call-service
+                  service: scene.turn_on
+                  target:
+                    entity_id: scene.living_room_movie
+          - id: security
+            label: Security
+            title: SECURITY
+            subtitle: Protection and cameras
+            icon: mdi:shield-home-outline
+            tiles:
+              - name: Alarm
+                entity: alarm_control_panel.home_alarm
+                icon: mdi:shield-lock
+                tap_action:
+                  action: more-info
+                  entity: alarm_control_panel.home_alarm
+              - name: Front camera
+                entity: camera.front_door
+                icon: mdi:cctv
+                tap_action:
+                  action: more-info
+                  entity: camera.front_door
+              - name: Lock front door
+                entity: lock.front_door
+                icon: mdi:lock
+                tap_action:
+                  action: call-service
+                  service: lock.lock
+                  target:
+                    entity_id: lock.front_door
+              - name: Open cameras
+                icon: mdi:video-box
+                label: Navigate
+                tap_action:
+                  action: navigate
+                  navigation_path: /lovelace/security
+          - id: media
+            label: Media
+            title: MEDIA
+            subtitle: Music and TV
+            icon: mdi:play-box-outline
+            tiles:
+              - name: TV
+                entity: media_player.living_room_tv
+                icon: mdi:television
+                tap_action:
+                  action: toggle
+                  entity: media_player.living_room_tv
+              - name: Speaker
+                entity: media_player.living_room_speaker
+                icon: mdi:speaker
+                tap_action:
+                  action: more-info
+                  entity: media_player.living_room_speaker
+              - name: Play/Pause
+                icon: mdi:play-pause
+                label: Speaker
+                tap_action:
+                  action: call-service
+                  service: media_player.media_play_pause
+                  target:
+                    entity_id: media_player.living_room_speaker
+              - name: Movie scene
+                icon: mdi:movie
+                label: Lights + media
+                tap_action:
+                  action: call-service
+                  service: scene.turn_on
+                  target:
+                    entity_id: scene.living_room_movie
+          - id: maintenance
+            label: Maintenance
+            title: MAINTENANCE
+            subtitle: Systems health
+            icon: mdi:router-wireless-settings
+            tiles:
+              - name: Backups
+                entity: sensor.backup_state
+                icon: mdi:cloud-upload
+                tap_action:
+                  action: more-info
+                  entity: sensor.backup_state
+              - name: CPU
+                entity: sensor.centauri_cpu
+                icon: mdi:cpu-64-bit
+                tap_action:
+                  action: more-info
+                  entity: sensor.centauri_cpu
+              - name: Storage
+                entity: sensor.ganymede_storage
+                icon: mdi:harddisk
+                tap_action:
+                  action: more-info
+                  entity: sensor.ganymede_storage
+              - name: Restart HA
+                icon: mdi:restart
+                label: Service call
+                tap_action:
+                  action: call-service
+                  service: homeassistant.restart
+          - id: presence
+            label: Presence
+            title: PRESENCE
+            subtitle: People and automations
+            icon: mdi:map-marker-radius-outline
+            tiles:
+              - name: Person 1
+                entity: person.person_1
+                icon: mdi:account
+                tap_action:
+                  action: more-info
+                  entity: person.person_1
+              - name: Person 2
+                entity: person.person_2
+                icon: mdi:account-outline
+                tap_action:
+                  action: more-info
+                  entity: person.person_2
+              - name: Guest mode
+                entity: input_boolean.guest_mode
+                icon: mdi:account-plus
+                tap_action:
+                  action: toggle
+                  entity: input_boolean.guest_mode
+              - name: Away mode
+                entity: input_boolean.away_mode
+                icon: mdi:home-export-outline
+                tap_action:
+                  action: toggle
+                  entity: input_boolean.away_mode
+          - id: systems
+            label: Systems
+            title: SYSTEMS
+            subtitle: Infrastructure
+            icon: mdi:database-cog-outline
+            tiles:
+              - name: UPS
+                entity: sensor.ups_battery
+                icon: mdi:battery-high
+                tap_action:
+                  action: more-info
+                  entity: sensor.ups_battery
+              - name: Router
+                entity: binary_sensor.router_status
+                icon: mdi:router-network
+                tap_action:
+                  action: more-info
+                  entity: binary_sensor.router_status
+              - name: Server
+                entity: sensor.server_status
+                icon: mdi:server
+                tap_action:
+                  action: more-info
+                  entity: sensor.server_status
+              - name: Logs
+                icon: mdi:text-box-search
+                label: Navigate
+                tap_action:
+                  action: navigate
+                  navigation_path: /config/logs
