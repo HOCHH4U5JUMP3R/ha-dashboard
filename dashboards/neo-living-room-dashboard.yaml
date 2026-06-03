@@ -241,7 +241,7 @@ views:
             variables:
               icon: mdi:thermometer
               unit: °C
-              max: 30
+              max: 45
               color: '#aeb5e9'
           - type: custom:button-card
             template: neo_gauge
@@ -261,7 +261,7 @@ views:
               icon: mdi:radiator
               value_entity: sensor.living_room_target_temperature
               unit: °C
-              max: 30
+              max: 35
               color: '#2c9cff'
               left_label: '-'
               center_mode: power
