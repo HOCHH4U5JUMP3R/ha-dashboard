@@ -1,0 +1,452 @@
+# Home Assistant Lovelace dashboard inspired by the supplied living-room mockup.
+# Required custom cards: Mushroom, card-mod, button-card, mini-graph-card.
+# Optional: layout-card. Replace the demo entities with your own entity ids.
+title: Neo Living Room
+views:
+  - title: Living Room
+    path: living-room
+    icon: mdi:sofa
+    type: custom:grid-layout
+    layout:
+      grid-template-columns: minmax(260px, 300px) 1fr minmax(300px, 360px)
+      grid-template-rows: 1fr 76px
+      grid-template-areas: |
+        "left center right"
+        "left nav    right"
+      gap: 20px
+      mediaquery:
+        "(max-width: 1000px)":
+          grid-template-columns: 1fr
+          grid-template-rows: auto auto auto auto
+          grid-template-areas: |
+            "center"
+            "right"
+            "left"
+            "nav"
+    badges: []
+    cards:
+      - type: vertical-stack
+        view_layout:
+          grid-area: left
+        cards:
+          - type: horizontal-stack
+            cards:
+              - type: custom:mushroom-template-card
+                primary: SYSTEMS
+                icon: mdi:cog
+                tap_action:
+                  action: navigate
+                  navigation_path: /lovelace/living-room
+                card_mod:
+                  style: |
+                    ha-card {
+                      --card-primary-font-weight: 800;
+                      --card-primary-font-size: 13px;
+                      background: rgba(255,255,255,.96);
+                      color: #101225;
+                      border-radius: 7px;
+                      min-height: 48px;
+                    }
+                    mushroom-shape-icon { display: none; }
+              - type: custom:mushroom-template-card
+                primary: MAINTENANCE
+                icon: mdi:wrench-clock
+                tap_action:
+                  action: navigate
+                  navigation_path: /lovelace/maintenance
+                card_mod:
+                  style: |
+                    ha-card {
+                      --card-primary-font-weight: 700;
+                      --card-primary-font-size: 13px;
+                      background: rgba(16,19,45,.55);
+                      border: 1px solid rgba(170,180,230,.35);
+                      border-radius: 7px;
+                      min-height: 48px;
+                    }
+                    mushroom-shape-icon { display: none; }
+          - type: custom:button-card
+            template: neo_system_list
+            variables:
+              rows:
+                - icon: mdi:check-circle
+                  name: ALARM
+                  label: Not armed
+                  color: var(--neo-muted)
+                - icon: mdi:check-circle
+                  name: SECURITY CAMERAS
+                  label: Recording
+                  color: var(--neo-muted)
+                - icon: mdi:alert
+                  name: BACKUPS
+                  label: Cloud backup outdated
+                  color: var(--neo-orange)
+                - icon: mdi:check-circle
+                  name: UPS
+                  label: 100% / 94m
+                  color: var(--neo-muted)
+          - type: custom:mini-graph-card
+            name: CPU_Centauri (avg. 24h)
+            entities:
+              - entity: sensor.centauri_cpu
+            hours_to_show: 24
+            points_per_hour: 1
+            show:
+              graph: bar
+              extrema: false
+              icon: false
+              state: true
+            color_thresholds:
+              - value: 0
+                color: '#7c85c7'
+              - value: 75
+                color: '#f59f42'
+            card_mod:
+              style: &metric_bar_style |
+                ha-card {
+                  background: transparent;
+                  box-shadow: none;
+                  color: var(--neo-text);
+                  padding: 0 0 6px;
+                }
+          - type: custom:mini-graph-card
+            name: "Storage: Ganymede"
+            entities:
+              - entity: sensor.ganymede_storage
+            show:
+              graph: bar
+              icon: false
+              state: true
+            card_mod:
+              style: *metric_bar_style
+          - type: custom:mini-graph-card
+            name: "Storage: Metis"
+            entities:
+              - entity: sensor.metis_storage
+            show:
+              graph: bar
+              icon: false
+              state: true
+            card_mod:
+              style: *metric_bar_style
+          - type: custom:mini-graph-card
+            name: Starman
+            entities:
+              - entity: sensor.starman_speed
+            show:
+              graph: bar
+              icon: false
+              state: true
+            card_mod:
+              style: *metric_bar_style
+
+      - type: vertical-stack
+        view_layout:
+          grid-area: center
+        cards:
+          - type: custom:mushroom-title-card
+            title: LIVING ROOM
+            subtitle: Ground floor
+            alignment: center
+            card_mod:
+              style: |
+                ha-card {
+                  width: 190px;
+                  margin: 0 auto 28px;
+                  border: 1px solid rgba(169,181,232,.38);
+                  border-radius: 7px;
+                  padding: 12px 8px 10px;
+                  background: rgba(12,15,36,.55);
+                }
+                .title { font-size: 22px !important; letter-spacing: .03em; }
+                .subtitle { color: var(--neo-muted); font-size: 11px !important; }
+          - type: picture-elements
+            image: /local/neo-dashboard/living-room.png
+            elements:
+              - type: custom:mushroom-template-card
+                primary: SCENE
+                icon: mdi:movie-open
+                tap_action:
+                  action: call-service
+                  service: scene.turn_on
+                  target:
+                    entity_id: scene.living_room_evening
+                style:
+                  top: 52%
+                  left: 50%
+                  width: 120px
+                card_mod:
+                  style: |
+                    ha-card {
+                      background: rgba(255,255,255,.92);
+                      color: #15172d;
+                      border-radius: 7px;
+                      --card-primary-font-weight: 800;
+                    }
+                    mushroom-shape-icon { display: none; }
+            card_mod:
+              style: |
+                ha-card {
+                  background: transparent;
+                  box-shadow: none;
+                  max-width: 620px;
+                  margin: 0 auto;
+                  filter: drop-shadow(0 40px 42px rgba(95,125,255,.28));
+                }
+          - type: custom:mushroom-chips-card
+            alignment: center
+            chips:
+              - type: entity
+                entity: sensor.living_room_temperature
+                icon: mdi:thermometer
+              - type: entity
+                entity: sensor.living_room_humidity
+                icon: mdi:water-percent
+              - type: entity
+                entity: light.living_room_all
+                icon: mdi:lightbulb-group
+            card_mod:
+              style: |
+                ha-card {
+                  margin-top: 36px;
+                  background: radial-gradient(circle at center, rgba(123,145,255,.32), transparent 58%);
+                }
+
+      - type: grid
+        view_layout:
+          grid-area: right
+        columns: 2
+        square: false
+        cards:
+          - type: custom:button-card
+            template: neo_gauge
+            entity: sensor.living_room_temperature
+            name: TEMP
+            label: Comfortable
+            variables:
+              unit: °C
+              max: 30
+              color: '#aeb5e9'
+          - type: custom:button-card
+            template: neo_gauge
+            entity: sensor.living_room_humidity
+            name: HUMIDITY
+            label: Dry
+            variables:
+              unit: '%'
+              max: 100
+              color: '#f29a37'
+          - type: custom:button-card
+            template: neo_gauge_controls
+            entity: climate.living_room
+            name: HEATING
+            variables:
+              value_entity: sensor.living_room_target_temperature
+              unit: °C
+              max: 30
+              color: '#2c9cff'
+              left_label: '-'
+              right_label: +
+          - type: custom:button-card
+            template: neo_gauge_controls
+            entity: light.living_room_all
+            name: ALL LIGHTS
+            variables:
+              value_entity: sensor.living_room_light_level
+              unit: '%'
+              max: 100
+              color: '#2c9cff'
+              left_label: 'OFF'
+              right_label: DIM
+          - type: custom:button-card
+            template: neo_gauge_controls
+            entity: light.floor_lamp
+            name: FLOOR LAMP
+            variables:
+              value_entity: sensor.floor_lamp_brightness
+              unit: '%'
+              max: 100
+              color: '#2c9cff'
+              left_label: 'OFF'
+              right_label: DIM
+          - type: custom:button-card
+            template: neo_gauge_controls
+            entity: light.ceiling_spots
+            name: CEILING SPOTS
+            variables:
+              value_entity: sensor.ceiling_spots_brightness
+              unit: '%'
+              max: 100
+              color: '#2c9cff'
+              left_label: 'ON'
+              right_label: ''
+
+      - type: custom:mushroom-chips-card
+        view_layout:
+          grid-area: nav
+        alignment: center
+        chips:
+          - type: template
+            icon: mdi:rocket-launch
+            content: Overview
+            tap_action:
+              action: navigate
+              navigation_path: /lovelace/living-room
+          - type: template
+            icon: mdi:heat-wave
+            content: Climate
+            tap_action:
+              action: navigate
+              navigation_path: /lovelace/climate
+          - type: template
+            icon: mdi:lightbulb-on-outline
+            content: Lights
+            tap_action:
+              action: navigate
+              navigation_path: /lovelace/lights
+          - type: template
+            icon: mdi:shield-home-outline
+            content: Security
+            tap_action:
+              action: navigate
+              navigation_path: /lovelace/security
+          - type: template
+            icon: mdi:play-box-outline
+            content: Media
+            tap_action:
+              action: navigate
+              navigation_path: /lovelace/media
+          - type: template
+            icon: mdi:router-wireless-settings
+            content: Maintenance
+            tap_action:
+              action: navigate
+              navigation_path: /lovelace/maintenance
+          - type: template
+            icon: mdi:map-marker-radius-outline
+            content: Presence
+            tap_action:
+              action: navigate
+              navigation_path: /lovelace/presence
+          - type: template
+            icon: mdi:database-cog-outline
+            content: Systems
+            tap_action:
+              action: navigate
+              navigation_path: /lovelace/systems
+        card_mod:
+          style: |
+            ha-card {
+              width: min(620px, 100%);
+              margin: 0 auto;
+              padding: 8px 12px;
+              border-radius: 28px 28px 0 0;
+              background: linear-gradient(180deg, rgba(27,31,78,.92), rgba(11,14,39,.96));
+              box-shadow: 0 -8px 32px rgba(30,66,210,.25);
+            }
+
+button_card_templates:
+  neo_system_list:
+    show_icon: false
+    show_name: false
+    styles:
+      card:
+        - background: transparent
+        - box-shadow: none
+        - padding: 22px 0 18px
+      grid:
+        - gap: 18px
+      custom_fields:
+        list:
+          - width: 100%
+    custom_fields:
+      list: |
+        [[[
+          return `<div class="neo-system-list">${variables.rows.map((row) => `
+            <div class="neo-system-row">
+              <ha-icon icon="${row.icon}" style="color:${row.color}"></ha-icon>
+              <div><b>${row.name}</b><span>${row.label}</span></div>
+            </div>`).join('')}</div>`;
+        ]]]
+    extra_styles: |
+      .neo-system-list { display: grid; gap: 22px; }
+      .neo-system-row { display: grid; grid-template-columns: 24px 1fr; gap: 12px; align-items: center; }
+      .neo-system-row ha-icon { width: 20px; height: 20px; }
+      .neo-system-row b { display: block; color: var(--neo-text); font-size: 12px; letter-spacing: .02em; }
+      .neo-system-row span { color: var(--neo-muted); font-size: 11px; }
+  neo_gauge:
+    show_icon: false
+    show_state: false
+    show_label: true
+    aspect_ratio: 1/1.15
+    styles:
+      card:
+        - background: rgba(20,24,57,.62)
+        - border: 1px solid rgba(61,70,124,.18)
+        - box-shadow: none
+        - border-radius: 4px
+        - padding: 14px 8px
+      name:
+        - color: var(--neo-text)
+        - font-size: 10px
+        - font-weight: 700
+      label:
+        - color: var(--neo-muted)
+        - font-size: 11px
+      custom_fields:
+        gauge:
+          - margin: 0 auto 8px
+    custom_fields:
+      gauge: |
+        [[[
+          const raw = Number(entity?.state ?? 0);
+          const max = Number(variables.max ?? 100);
+          const value = Number.isFinite(raw) ? raw : 0;
+          const deg = Math.max(0, Math.min(300, (value / max) * 300));
+          const formatted = value.toLocaleString('de-DE', { maximumFractionDigits: 1 });
+          return `<div class="neo-ring" style="--deg:${deg}deg;--ring:${variables.color}">
+            <div class="neo-gauge-name">${name}</div>
+            <div class="neo-gauge-value">${formatted}</div>
+            <div class="neo-gauge-unit">${variables.unit}</div>
+          </div>`;
+        ]]]
+    extra_styles: |
+      .neo-ring {
+        width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center;
+        background: conic-gradient(from 210deg, var(--ring) var(--deg), rgba(255,255,255,.06) var(--deg) 300deg, transparent 300deg 360deg);
+        position: relative;
+      }
+      .neo-ring:after { content: ''; position: absolute; inset: 7px; border-radius: 50%; background: #111530; box-shadow: inset 0 0 24px rgba(0,0,0,.35); }
+      .neo-gauge-name, .neo-gauge-value, .neo-gauge-unit { position: relative; z-index: 1; text-align: center; }
+      .neo-gauge-name { align-self: end; color: var(--neo-muted); font-size: 9px; font-weight: 700; }
+      .neo-gauge-value { font-size: 26px; color: var(--neo-text); line-height: 1; }
+      .neo-gauge-unit { align-self: start; color: var(--neo-text); font-size: 16px; font-weight: 700; }
+  neo_gauge_controls:
+    template: neo_gauge
+    custom_fields:
+      gauge: |
+        [[[
+          const stateObj = states[variables.value_entity] ?? entity;
+          const raw = Number(stateObj?.state ?? 0);
+          const max = Number(variables.max ?? 100);
+          const value = Number.isFinite(raw) ? raw : 0;
+          const deg = Math.max(0, Math.min(300, (value / max) * 300));
+          const formatted = value.toLocaleString('de-DE', { maximumFractionDigits: 1 });
+          return `<div class="neo-ring" style="--deg:${deg}deg;--ring:${variables.color}">
+            <div class="neo-gauge-name">${name}</div>
+            <div class="neo-gauge-value">${formatted}</div>
+            <div class="neo-gauge-unit">${variables.unit}</div>
+          </div><div class="neo-controls"><span>${variables.left_label}</span><span>${variables.right_label}</span></div>`;
+        ]]]
+    extra_styles: |
+      .neo-ring {
+        width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center;
+        background: conic-gradient(from 210deg, var(--ring) var(--deg), rgba(255,255,255,.06) var(--deg) 300deg, transparent 300deg 360deg);
+        position: relative;
+      }
+      .neo-ring:after { content: ''; position: absolute; inset: 7px; border-radius: 50%; background: #111530; box-shadow: inset 0 0 24px rgba(0,0,0,.35); }
+      .neo-gauge-name, .neo-gauge-value, .neo-gauge-unit { position: relative; z-index: 1; text-align: center; }
+      .neo-gauge-name { align-self: end; color: var(--neo-muted); font-size: 9px; font-weight: 700; }
+      .neo-gauge-value { font-size: 26px; color: var(--neo-text); line-height: 1; }
+      .neo-gauge-unit { align-self: start; color: var(--neo-text); font-size: 16px; font-weight: 700; }
+      .neo-controls { display: flex; justify-content: space-between; width: 86%; margin: 4px auto 0; color: var(--neo-text); font-size: 12px; font-weight: 800; }
