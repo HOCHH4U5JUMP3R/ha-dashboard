@@ -38,6 +38,16 @@ views:
             temperature_entity: sensor.living_room_temperature
             humidity_entity: sensor.living_room_humidity
             all_lights_entity: light.living_room_all
+            socket_entities:
+              - name: TV
+                entity: switch.living_room_tv
+              - name: Konsole
+                entity: switch.living_room_console
+            contact_entities:
+              - name: Terrassentür
+                entity: binary_sensor.living_room_patio_door
+              - name: Fenster
+                entity: binary_sensor.living_room_window
           - id: office
             title: BÜRO
             subtitle: Arbeiten
@@ -48,6 +58,17 @@ views:
             temperature_entity: sensor.office_temperature
             humidity_entity: sensor.office_humidity
             all_lights_entity: light.office_all
+            enabled_pages: [rooms, overview, climate, lights, maintenance, systems, server]
+            socket_entities:
+              - name: Drucker
+                entity: switch.office_printer
+              - name: Dock
+                entity: switch.office_dock
+            contact_entities:
+              - name: Fenster
+                entity: binary_sensor.office_window
+              - name: Tür
+                entity: binary_sensor.office_door
           - id: kitchen
             title: KÜCHE
             subtitle: Kochen
@@ -162,6 +183,7 @@ views:
               entity: sensor.starman_speed
         gauges:
           - name: TEMP
+            icon: mdi:thermometer
             entity: sensor.{prefix}_temperature
             unit: °C
             max: 30
@@ -171,6 +193,7 @@ views:
               action: more-info
               entity: sensor.{prefix}_temperature
           - name: FEUCHTE
+            icon: mdi:water-percent
             entity: sensor.{prefix}_humidity
             unit: '%'
             max: 100
@@ -180,6 +203,7 @@ views:
               action: more-info
               entity: sensor.{prefix}_humidity
           - name: HEIZUNG
+            icon: mdi:radiator
             entity: climate.{prefix}
             value_attribute: temperature
             unit: °C
@@ -191,51 +215,90 @@ views:
                   action: climate-temperature-step
                   entity: climate.{prefix}
                   step: -0.5
+              - label_mode: climate_power
+                tap_action:
+                  action: climate-toggle-heat
+                  entity: climate.{prefix}
               - label: '+'
                 tap_action:
                   action: climate-temperature-step
                   entity: climate.{prefix}
                   step: 0.5
-              - label: AN
-                tap_action:
-                  action: climate-hvac-mode
-                  entity: climate.{prefix}
-                  hvac_mode: heat
-              - label: AUS
-                tap_action:
-                  action: climate-hvac-mode
-                  entity: climate.{prefix}
-                  hvac_mode: 'off'
             tap_action:
               action: more-info
               entity: climate.{prefix}
           - name: ALLE LICHTER
+            icon: mdi:lightbulb-group
             entity: light.{prefix}_all
             value_entity: sensor.{prefix}_light_level
             unit: '%'
             max: 100
             color: '#2c9cff'
-            controls: ['OFF', 'DIM']
+            controls:
+              - label: '-'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.{prefix}_all
+                  step: -20
+              - label_mode: power
+                tap_action:
+                  action: toggle
+                  entity: light.{prefix}_all
+              - label: '+'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.{prefix}_all
+                  step: 20
             tap_action:
               action: toggle
               entity: light.{prefix}_all
           - name: STEHLAMPE
+            icon: mdi:floor-lamp
             entity: light.{prefix}_main
             value_entity: sensor.{prefix}_main_light_level
             unit: '%'
             max: 100
             color: '#2c9cff'
-            controls: ['OFF', 'DIM']
+            controls:
+              - label: '-'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.{prefix}_main
+                  step: -20
+              - label_mode: power
+                tap_action:
+                  action: toggle
+                  entity: light.{prefix}_main
+              - label: '+'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.{prefix}_main
+                  step: 20
             tap_action:
               action: toggle
               entity: light.{prefix}_main
           - name: DECKENSPOTS
+            icon: mdi:ceiling-light-multiple
             entity: light.{prefix}_ceiling
             value_entity: sensor.{prefix}_ceiling_light_level
             unit: '%'
             max: 100
             color: '#2c9cff'
-            controls: ['ON', '']
+            controls:
+              - label: '-'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.{prefix}_ceiling
+                  step: -20
+              - label_mode: power
+                tap_action:
+                  action: toggle
+                  entity: light.{prefix}_ceiling
+              - label: '+'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.{prefix}_ceiling
+                  step: 20
             tap_action:
               action: toggle
               entity: light.{prefix}_ceiling
@@ -446,6 +509,37 @@ views:
                 tap_action:
                   action: toggle
                   entity: input_boolean.away_mode
+          - id: server
+            label: Server
+            title: SERVER
+            subtitle: Dienste und Sensoren
+            icon: mdi:server-network
+            rooms: [office]
+            tiles:
+              - name: Jellyfin
+                entity: sensor.jellyfin_status
+                icon: mdi:movie-open-play
+                tap_action:
+                  action: more-info
+                  entity: sensor.jellyfin_status
+              - name: Sonarr
+                entity: sensor.sonarr_status
+                icon: mdi:television-classic
+                tap_action:
+                  action: more-info
+                  entity: sensor.sonarr_status
+              - name: Radarr
+                entity: sensor.radarr_status
+                icon: mdi:filmstrip
+                tap_action:
+                  action: more-info
+                  entity: sensor.radarr_status
+              - name: Server
+                entity: sensor.server_status
+                icon: mdi:server
+                tap_action:
+                  action: more-info
+                  entity: sensor.server_status
           - id: systems
             label: System
             title: SYSTEM

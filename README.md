@@ -68,14 +68,16 @@ Alle sichtbaren Bereiche sind über YAML konfigurierbar:
 | --- | --- |
 | `background_image` | Eigenes Vollbild-Hintergrundbild hinter Glow und Panels. |
 | `image` | Zentraler Wohnzimmer-/Raum-Render auf der Übersichtsseite. |
-| `top_tabs` | Reiter links oben, z. B. System- und Wartungsaktionen. |
-| `systems` | Linke Statusliste mit Icon, Entity, Label, Farbe und Aktion. |
+| `top_tabs` | Reiter links oben auf Raumseiten, z. B. System- und Wartungsaktionen. |
+| `room_overview_top_tabs` | Eigene Startseiten-Reiter, standardmäßig Kalender, Todo und Wetter. |
+| `systems` | Linke Statusliste mit Icon, Entity, Label, Farbe und Aktion auf Raumseiten. |
+| `room_overview_systems` | Linke Statusliste auf der Raumübersicht, z. B. Kalender, Todo und Wetter. |
 | `metrics` | Linke Balkenwerte mit Entity, Maximalwert, Einheit und Aktion. |
 | `gauges` | Rechte runde Karten mit Entity, optionaler `value_entity`, Einheit, Farbe und Aktion. |
-| `rooms` | Raumliste für Schlafzimmer, Wohnzimmer, Büro, Küche, Badezimmer, Garage und Keller. |
+| `rooms` | Raumliste für Schlafzimmer, Wohnzimmer, Büro, Küche, Badezimmer, Garage und Keller; pro Raum können Steckdosen-/Kontakt-Entities und Seitenregeln gesetzt werden. |
 | `default_room` | Raum, der nach dem Öffnen bzw. nach dem Zurückwechseln auf Raumseiten aktiv ist. |
 | `room_overview_gauges` | Rechte Gauges der Raumübersicht, z. B. Durchschnittstemperatur oder aktive Lichter. |
-| `pages` | Untere Navigation und interne Seiten mit beliebig vielen Funktionskacheln. |
+| `pages` | Untere Navigation und interne Seiten mit beliebig vielen Funktionskacheln; Seiten können per `rooms`, `exclude_rooms`, `enabled: false`, `enabled_pages` oder `disabled_pages` raumabhängig gesteuert werden. |
 
 
 ## Räume und Raumübersicht
@@ -131,22 +133,82 @@ tiles:
 ```
 
 
+Die Raumkacheln zeigen zusätzlich zu Temperatur, Feuchte und Licht auch aktive Steckdosen sowie offene Tür-/Fensterkontakte. Dafür kannst du pro Raum `socket_entities` und `contact_entities` hinterlegen:
+
+```yaml
+rooms:
+  - id: office
+    title: BÜRO
+    socket_entities:
+      - name: Drucker
+        entity: switch.office_printer
+      - name: Dock
+        entity: switch.office_dock
+    contact_entities:
+      - name: Fenster
+        entity: binary_sensor.office_window
+      - name: Tür
+        entity: binary_sensor.office_door
+```
+
+Die Startseite nutzt eigene linke Reiter und Statuszeilen, damit Wartung/System nicht mehr auf der Raumübersicht erscheinen müssen:
+
+```yaml
+room_overview_top_tabs:
+  - label: KALENDER
+    tap_action:
+      action: more-info
+      entity: calendar.home
+  - label: TODO
+    tap_action:
+      action: more-info
+      entity: todo.home
+  - label: WETTER
+    tap_action:
+      action: more-info
+      entity: weather.home
+```
+
+Auf Funktionsseiten wie Klima, Lichter oder Server wird rechts keine wiederholte Gauge-Leiste mehr angezeigt. Stattdessen rendert die rechte Seite Gerätesteuerungen aus den Tiles der aktiven Seite; Climate- und Light-Entities erhalten automatisch passende Minus/AN-AUS/Plus-Controls.
+
+Untere Reiter können global oder pro Raum eingeschränkt und erweitert werden. Beispiel: Server nur im Büro anzeigen und im Schlafzimmer Medien ausblenden:
+
+```yaml
+pages:
+  - id: server
+    label: Server
+    title: SERVER
+    icon: mdi:server-network
+    rooms: [office]
+    tiles:
+      - name: Jellyfin
+        entity: sensor.jellyfin_status
+        icon: mdi:movie-open-play
+rooms:
+  - id: bedroom
+    disabled_pages: [media]
+  - id: office
+    enabled_pages: [rooms, overview, climate, lights, maintenance, systems, server]
+```
+
+
 ## Temperatur- und Heizungslogik
 
 Die Temperatur-Gauge kann mit `label_mode: temperature_comfort` automatisch bewertet werden:
 
 | Temperatur | Label |
 | --- | --- |
-| unter 17 °C | `zu kalt` |
-| 17 bis unter 19 °C | `kühl` |
-| 19 bis unter 23 °C | `angenehm` |
-| 23 bis unter 26 °C | `warm` |
-| ab 26 °C | `heiß` |
+| unter 15 °C | `kalt` |
+| 15 bis unter 20 °C | `kühl` |
+| 20 bis unter 22 °C | `angenehm` |
+| 22 bis unter 25 °C | `warm` |
+| ab 25 °C | `heiß` |
 
-Die Heizungs-Gauge zeigt nicht die aktuelle Raumtemperatur, sondern die Zieltemperatur des Climate-Entitys. Dafür nutzt sie `value_attribute: temperature`. Die Tasten `-` und `+` ändern die Zieltemperatur in 0,5-°C-Schritten; `AN` und `AUS` setzen den Heizmodus.
+Die Heizungs-Gauge zeigt nicht die aktuelle Raumtemperatur, sondern die Zieltemperatur des Climate-Entitys. Dafür nutzt sie `value_attribute: temperature`. Wenn die Heizung ausgeschaltet ist, zeigt die Gauge `AUS` statt `0 °C`. Die Controls sind als `-`, dynamischer `AN`/`AUS`-Button und `+` angeordnet.
 
 ```yaml
 - name: HEIZUNG
+  icon: mdi:radiator
   entity: climate.{prefix}
   value_attribute: temperature
   unit: °C
@@ -158,21 +220,42 @@ Die Heizungs-Gauge zeigt nicht die aktuelle Raumtemperatur, sondern die Zieltemp
         action: climate-temperature-step
         entity: climate.{prefix}
         step: -0.5
+    - label_mode: climate_power
+      tap_action:
+        action: climate-toggle-heat
+        entity: climate.{prefix}
     - label: '+'
       tap_action:
         action: climate-temperature-step
         entity: climate.{prefix}
         step: 0.5
-    - label: AN
+```
+
+Licht-Gauges zeigen bei ausgeschaltetem Licht ebenfalls `AUS`. Die Helligkeitsbuttons nutzen `light-brightness-step` und der mittlere Button wechselt dynamisch zwischen `AN` und `AUS`:
+
+```yaml
+- name: LICHT
+  icon: mdi:lightbulb-group
+  entity: light.{prefix}_all
+  value_entity: sensor.{prefix}_light_level
+  unit: '%'
+  max: 100
+  color: '#2c9cff'
+  controls:
+    - label: '-'
       tap_action:
-        action: climate-hvac-mode
-        entity: climate.{prefix}
-        hvac_mode: heat
-    - label: AUS
+        action: light-brightness-step
+        entity: light.{prefix}_all
+        step: -20
+    - label_mode: power
       tap_action:
-        action: climate-hvac-mode
-        entity: climate.{prefix}
-        hvac_mode: 'off'
+        action: toggle
+        entity: light.{prefix}_all
+    - label: '+'
+      tap_action:
+        action: light-brightness-step
+        entity: light.{prefix}_all
+        step: 20
 ```
 
 ## Funktionen und Aktionen
