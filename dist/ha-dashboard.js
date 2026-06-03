@@ -49,20 +49,26 @@ class HaNeoDashboard extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>${this.styles}</style>
       <ha-card style="${this.backgroundStyle}">
-        <section class="dashboard-shell ${page && page.type !== 'rooms' && page.type !== 'overview' ? 'has-control-panel' : ''}">
+        <section class="dashboard-shell ${page && page.type !== 'rooms' && page.type !== 'overview' ? 'is-content-page' : ''}">
           ${this.renderLeftPanel()}
           <main class="content-panel">
             ${page?.type === 'rooms' ? this.renderRooms() : page?.type === 'overview' ? this.renderÜbersicht() : this.renderPage(page)}
           </main>
-          ${this.renderRightPanel(page)}
+          ${page && page.type !== 'rooms' && page.type !== 'overview' ? '' : this.renderRightPanel(page)}
           ${this.renderNavigation()}
         </section>
       </ha-card>
     `;
+
+    this.hydrateCustomCards(page);
   }
 
   renderLeftPanel() {
     const page = this.activePage;
+    if (page?.id === 'server') {
+      return this.renderServerStatusPanel(page);
+    }
+
     const cfg = page?.type === 'rooms'
       ? {
         top_tabs: this.config.room_overview_top_tabs || [],
@@ -86,6 +92,64 @@ class HaNeoDashboard extends HTMLElement {
         </div>` : ''}
       </aside>
     `;
+  }
+
+  renderServerStatusPanel(page) {
+    const resolvedPage = resolveRoomValue(page, this.activeRoom);
+    const sections = resolvedPage.server_status_sections || [];
+
+    return `
+      <aside class="left-panel server-status-panel">
+        <button class="server-status-title" type="button" data-action='${jsonAttr(actionFor(resolvedPage.server || {}))}'>
+          <ha-icon icon="${escapeAttr(resolvedPage.server?.icon || 'mdi:nas')}"></ha-icon>
+          <span>${escapeHtml(resolvedPage.server?.name || 'MediaCenter22')}</span>
+        </button>
+        <div class="server-status-sections">
+          ${sections.map((section) => this.renderServerStatusSection(section)).join('')}
+        </div>
+      </aside>
+    `;
+  }
+
+  renderServerStatusSection(section) {
+    return `
+      <section class="server-status-section">
+        <h3><ha-icon icon="${escapeAttr(section.icon || 'mdi:server-network')}"></ha-icon>${escapeHtml(section.heading || section.name || '')}</h3>
+        <div class="server-status-badges">
+          ${(section.badges || []).map((badge) => this.renderServerStatusBadge(badge)).join('')}
+        </div>
+      </section>
+    `;
+  }
+
+  renderServerStatusBadge(badge) {
+    const state = badge.entity ? this._hass.states[badge.entity] : undefined;
+    const value = state ? `${this.formatState(state)}${this.unitSuffix(state)}` : (badge.label || '—');
+    const color = this.serverStatusColor(badge, state);
+
+    return `
+      <button class="server-status-badge ${escapeAttr(color)}" type="button" data-action='${jsonAttr(actionFor(badge))}'>
+        <ha-icon icon="${escapeAttr(badge.icon || 'mdi:circle-medium')}"></ha-icon>
+        <span>${escapeHtml(value)}</span>
+      </button>
+    `;
+  }
+
+  serverStatusColor(badge, state) {
+    const value = Number(state?.state);
+    if (Number.isFinite(value)) {
+      if (Number.isFinite(Number(badge.critical_above)) && value > Number(badge.critical_above)) {
+        return 'red';
+      }
+      if (Number.isFinite(Number(badge.warning_above)) && value > Number(badge.warning_above)) {
+        return 'orange';
+      }
+      if (Number.isFinite(Number(badge.ok_below)) && value < Number(badge.ok_below)) {
+        return badge.ok_color || 'green';
+      }
+    }
+
+    return badge.color || 'muted';
   }
 
   renderStatusRow(item) {
@@ -180,12 +244,199 @@ class HaNeoDashboard extends HTMLElement {
     `;
   }
 
-  renderPage(page) {
+
+  renderCustomCardPage(page, className = 'custom-card-grid') {
     return `
       ${this.renderTitle(page?.title || this.activeConfig.title, page?.subtitle || this.activeConfig.subtitle)}
-      <section class="page-grid">
+      <section class="${escapeAttr(className)}">
+        ${(page?.cards || []).map((card, index) => `<div class="lovelace-card-host" data-lovelace-card="${index}"></div>`).join('')}
+      </section>
+    `;
+  }
+
+  hydrateCustomCards(page) {
+    const hosts = [...(this.shadowRoot?.querySelectorAll('[data-lovelace-card]') || [])];
+    if (!hosts.length || !page?.cards?.length) {
+      return;
+    }
+
+    hosts.forEach((host) => {
+      const cardConfig = resolveRoomValue(page.cards[Number(host.dataset.lovelaceCard)], this.activeRoom);
+      if (!cardConfig || !cardConfig.type) {
+        return;
+      }
+
+      this.createLovelaceCard(cardConfig).then((card) => {
+        if (!card) {
+          return;
+        }
+        card.hass = this._hass;
+        host.replaceChildren(card);
+      });
+    });
+  }
+
+  async createLovelaceCard(cardConfig) {
+    if (window.loadCardHelpers) {
+      const helpers = await window.loadCardHelpers();
+      return helpers.createCardElement(cardConfig);
+    }
+
+    const element = document.createElement('hui-card');
+    element.setConfig(cardConfig);
+    return element;
+  }
+
+  renderPage(page) {
+    if (page?.cards?.length) {
+      return this.renderCustomCardPage(page, page?.id === 'server' ? 'server-custom-card-grid' : 'custom-card-grid');
+    }
+
+    if (page?.id === 'climate') {
+      return this.renderClimatePage(page);
+    }
+
+    if (page?.id === 'lights') {
+      return this.renderLightsPage(page);
+    }
+
+    if (page?.id === 'security') {
+      return this.renderSecurityPage(page);
+    }
+
+    if (page?.id === 'media') {
+      return this.renderMediaPage(page);
+    }
+
+    if (page?.id === 'server') {
+      return this.renderServerPage(page);
+    }
+
+    return `
+      ${this.renderTitle(page?.title || this.activeConfig.title, page?.subtitle || this.activeConfig.subtitle)}
+      <section class="page-grid page-grid-wide">
         ${(page?.tiles || []).map((tile) => this.renderTile(tile)).join('')}
       </section>
+    `;
+  }
+
+  renderClimatePage(page) {
+    const cfg = this.activeConfig;
+    const tempEntity = cfg.temperature_entity || `sensor.${cfg.prefix}_temperature`;
+    const humidityEntity = cfg.humidity_entity || `sensor.${cfg.prefix}_humidity`;
+    const climateEntity = cfg.climate_entity || `climate.${cfg.prefix}`;
+    const heating = page.tiles?.find((tile) => resolveRoomValue(tile, this.activeRoom).entity?.startsWith('climate.')) || { name: 'Heizung', entity: climateEntity, icon: 'mdi:radiator' };
+
+    return `
+      ${this.renderTitle(page?.title || 'KLIMA', page?.subtitle || 'Heizung und Luft')}
+      <section class="full-page-grid climate-layout">
+        ${this.renderHistoryPanel('Temperaturverlauf', tempEntity, 'mdi:thermometer', '°C')}
+        ${this.renderHistoryPanel('Luftfeuchtigkeit', humidityEntity, 'mdi:water-percent', '%')}
+        ${this.renderInfoCard('Aktuelle Temperatur', tempEntity, 'mdi:thermometer')}
+        ${this.renderInfoCard('Aktuelle Luftfeuchtigkeit', humidityEntity, 'mdi:water-percent')}
+        <div class="span-2">${this.renderDeviceControl(resolveRoomValue(heating, this.activeRoom))}</div>
+      </section>
+    `;
+  }
+
+  renderLightsPage(page) {
+    return `
+      ${this.renderTitle(page?.title || 'LICHTER', page?.subtitle || 'Raumstimmung')}
+      <section class="full-page-grid lights-layout">
+        ${(page?.tiles || []).filter((tile) => resolveRoomValue(tile, this.activeRoom).entity?.startsWith('light.')).map((tile) => this.renderLightControl(tile)).join('')}
+      </section>
+    `;
+  }
+
+  renderSecurityPage(page) {
+    const cfg = this.activeConfig;
+    const cameraTile = page.tiles?.find((tile) => resolveRoomValue(tile, this.activeRoom).entity?.startsWith('camera.')) || { name: 'Kamerafeed', entity: `camera.${cfg.prefix}`, icon: 'mdi:cctv' };
+    const contactTiles = page.tiles?.filter((tile) => {
+      const entity = resolveRoomValue(tile, this.activeRoom).entity || '';
+      return entity.startsWith('binary_sensor.') || entity.startsWith('lock.');
+    }) || [];
+
+    return `
+      ${this.renderTitle(page?.title || 'SICHERHEIT', page?.subtitle || 'Kamera, Tür und Fenster')}
+      <section class="full-page-grid security-layout">
+        <div class="span-2">${this.renderCameraPanel(resolveRoomValue(cameraTile, this.activeRoom))}</div>
+        ${contactTiles.map((tile) => this.renderTile(tile)).join('')}
+      </section>
+    `;
+  }
+
+  renderMediaPage(page) {
+    return `
+      ${this.renderTitle(page?.title || 'MEDIEN', page?.subtitle || 'Xbox, PlayStation und Apple TV')}
+      <section class="full-page-grid media-layout">
+        ${(page?.tiles || []).map((tile) => this.renderDeviceControl(resolveRoomValue(tile, this.activeRoom))).join('')}
+      </section>
+    `;
+  }
+
+  renderServerPage(page) {
+    return `
+      ${this.renderTitle(page?.title || 'SERVER', page?.subtitle || 'MediaCenter22 und Dienste')}
+      <section class="server-layout">
+        ${(page?.tiles || []).map((tile) => this.renderServerTile(tile)).join('')}
+      </section>
+    `;
+  }
+
+  renderHistoryPanel(title, entityId, icon, unit) {
+    const state = this._hass.states[entityId];
+    const value = state ? `${this.formatState(state)}${this.unitSuffix(state) || ` ${unit}`}` : '—';
+    const points = [18, 28, 25, 34, 30, 38, 35].map((y, index) => `${index * 16},${y}`).join(' ');
+
+    return `
+      <button class="history-panel" type="button" data-action='${jsonAttr({ action: 'more-info', entity: entityId })}'>
+        <span class="panel-head"><ha-icon icon="${escapeAttr(icon)}"></ha-icon><strong>${escapeHtml(title)}</strong><small>letzte 7 Tage</small></span>
+        <svg viewBox="0 0 96 48" preserveAspectRatio="none" aria-hidden="true"><polyline points="${points}"></polyline></svg>
+        <b>${escapeHtml(value)}</b>
+      </button>
+    `;
+  }
+
+  renderInfoCard(title, entityId, icon) {
+    const state = this._hass.states[entityId];
+    const value = state ? `${this.formatState(state)}${this.unitSuffix(state)}` : '—';
+    return `
+      <button class="info-card" type="button" data-action='${jsonAttr({ action: 'more-info', entity: entityId })}'>
+        <ha-icon icon="${escapeAttr(icon)}"></ha-icon>
+        <span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(value)}</small></span>
+      </button>
+    `;
+  }
+
+  renderLightControl(tile) {
+    const resolvedTile = resolveRoomValue(tile, this.activeRoom);
+    const controls = resolvedTile.controls || (resolvedTile.entity ? lightControls(resolvedTile.entity) : []);
+    return `<div class="light-control-card">${this.renderDeviceControl({ ...resolvedTile, controls })}</div>`;
+  }
+
+  renderCameraPanel(tile) {
+    const entity = tile.entity ? this._hass.states[tile.entity] : undefined;
+    const state = entity ? this.formatState(entity) : 'Feed vorbereitet';
+    return `
+      <button class="camera-panel" type="button" data-action='${jsonAttr(actionFor(tile))}'>
+        <span><ha-icon icon="${escapeAttr(tile.icon || 'mdi:cctv')}"></ha-icon>${escapeHtml(tile.name || 'Kamerafeed')}</span>
+        <strong>${escapeHtml(state)}</strong>
+      </button>
+    `;
+  }
+
+  renderServerTile(tile) {
+    const resolvedTile = resolveRoomValue(tile, this.activeRoom);
+    const entity = resolvedTile.entity ? this._hass.states[resolvedTile.entity] : undefined;
+    const state = resolvedTile.value ?? (entity ? `${this.formatState(entity)}${this.unitSuffix(entity)}` : resolvedTile.label || '—');
+    const wide = resolvedTile.span === 2 ? ' span-2' : resolvedTile.span === 3 ? ' span-3' : resolvedTile.span === 4 ? ' span-4' : '';
+    const active = entity && !['off', 'unavailable', 'unknown'].includes(entity.state);
+
+    return `
+      <button class="server-tile${wide} ${active ? 'active' : ''}" type="button" data-action='${jsonAttr(actionFor(resolvedTile))}'>
+        <ha-icon icon="${escapeAttr(resolvedTile.icon || 'mdi:server-network')}"></ha-icon>
+        <span><strong>${escapeHtml(resolvedTile.name || resolvedTile.entity || 'Server')}</strong><small>${escapeHtml(state)}</small></span>
+      </button>
     `;
   }
 
@@ -557,6 +808,7 @@ class HaNeoDashboard extends HTMLElement {
         padding: 34px 56px 0 28px;
         background: rgba(5, 8, 26, .2);
         backdrop-filter: saturate(120%);
+        position: relative;
       }
       .left-panel { grid-area: left; }
       .content-panel { grid-area: content; display: grid; align-content: start; justify-items: center; min-width: 0; }
@@ -577,6 +829,22 @@ class HaNeoDashboard extends HTMLElement {
       .metric b { color: var(--neo-text); font-size: 14px; font-weight: 500; }
       .metric i { grid-column: 1 / -1; height: 4px; border-radius: 999px; background: rgba(125, 137, 198, .28); overflow: hidden; }
       .metric em { display: block; height: 100%; border-radius: inherit; background: #aeb5e9; }
+      .server-status-panel { overflow: hidden auto; padding-bottom: 86px; }
+      .server-status-title { display: grid; grid-template-columns: 38px 1fr; gap: 12px; align-items: center; width: 100%; min-height: 56px; margin-bottom: 20px; padding: 0 12px; border-radius: 14px; background: rgba(20, 24, 57, .68); text-align: left; font-size: 14px; font-weight: 800; }
+      .server-status-title ha-icon { width: 26px; height: 26px; color: #f0c33c; }
+      .server-status-sections { display: grid; gap: 14px; }
+      .server-status-section { display: grid; gap: 9px; }
+      .server-status-section h3 { display: flex; align-items: center; gap: 9px; margin: 0; color: var(--neo-muted); font-size: 13px; font-weight: 800; }
+      .server-status-section h3 ha-icon { width: 18px; height: 18px; color: var(--neo-muted); }
+      .server-status-badges { display: flex; flex-wrap: wrap; gap: 7px; padding-left: 28px; }
+      .server-status-badge { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 3px 7px; border-radius: 999px; background: rgba(20, 24, 57, .62); color: var(--neo-muted); font-size: 11px; font-weight: 700; }
+      .server-status-badge ha-icon { width: 15px; height: 15px; }
+      .server-status-badge.green { color: #4bd669; }
+      .server-status-badge.orange { color: var(--neo-orange); }
+      .server-status-badge.red { color: #ff5148; }
+      .server-status-badge.blue { color: var(--neo-blue); }
+      .server-status-badge.purple { color: #a274ff; }
+      .server-status-badge.yellow { color: #f0c33c; }
       .room-title { width: 190px; margin: 0 auto 38px; border: 1px solid rgba(169, 181, 232, .38); border-radius: 7px; padding: 12px 8px 10px; text-align: center; background: rgba(12, 15, 36, .55); }
       .room-title h2 { margin: 0; font-size: 22px; font-weight: 500; letter-spacing: .03em; }
       .room-title p { margin: 10px 0 0; color: var(--neo-muted); font-size: 11px; }
@@ -587,6 +855,41 @@ class HaNeoDashboard extends HTMLElement {
       .chip { display: inline-flex; gap: 7px; align-items: center; border-radius: 999px; padding: 7px 12px; background: rgba(22, 27, 68, .76); color: var(--neo-text); }
       .chip ha-icon { width: 18px; color: var(--neo-blue); }
       .page-grid, .rooms-grid { width: min(760px, 100%); display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 16px; }
+      .is-content-page { grid-template-columns: minmax(230px, 280px) minmax(0, 1fr); grid-template-areas: 'left content' 'left nav'; padding-right: 56px; }
+      .is-content-page .content-panel { align-content: start; overflow: hidden auto; padding-bottom: 18px; }
+      .is-content-page .room-title { margin-bottom: 24px; }
+      .page-grid-wide, .full-page-grid, .server-layout { width: min(820px, 100%); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+      .full-page-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .span-2 { grid-column: span 2; }
+      .span-3 { grid-column: span 3; }
+      .span-4 { grid-column: 1 / -1; }
+      .history-panel, .info-card, .camera-panel, .server-tile { min-height: 112px; display: grid; gap: 12px; align-content: center; padding: 18px; border-radius: 18px; background: rgba(20, 24, 57, .62); border: 1px solid rgba(125, 145, 255, .18); text-align: left; box-shadow: 0 20px 36px rgba(0, 0, 0, .18); }
+      .history-panel { min-height: 210px; }
+      .history-panel .panel-head { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; }
+      .history-panel .panel-head ha-icon, .info-card ha-icon { width: 28px; height: 28px; color: var(--neo-blue); }
+      .server-tile ha-icon { width: 20px; height: 20px; color: var(--neo-blue); }
+      .history-panel .panel-head small, .info-card small, .server-tile small { color: var(--neo-muted); }
+      .history-panel svg { width: 100%; height: 100px; border-radius: 12px; background: linear-gradient(180deg, rgba(44, 156, 255, .10), rgba(44, 156, 255, .02)); }
+      .history-panel polyline { fill: none; stroke: var(--neo-blue); stroke-width: 3; vector-effect: non-scaling-stroke; }
+      .history-panel b { font-size: 26px; }
+      .info-card { grid-template-columns: 42px 1fr; align-items: center; }
+      .info-card strong { display: block; font-size: 15px; }
+      .server-tile strong { display: block; font-size: 12px; }
+      .info-card small { display: block; margin-top: 6px; font-size: 12px; }
+      .server-tile small { display: block; margin-top: 3px; color: var(--neo-muted); font-size: 11px; }
+      .light-control-card .device-control-card { min-height: 132px; }
+      .camera-panel { min-height: 280px; background: radial-gradient(circle at center, rgba(44, 156, 255, .18), rgba(20, 24, 57, .62)); place-items: center; text-align: center; }
+      .camera-panel span { display: inline-flex; align-items: center; gap: 10px; color: var(--neo-muted); }
+      .camera-panel ha-icon { width: 46px; height: 46px; color: var(--neo-blue); }
+      .camera-panel strong { font-size: 22px; }
+      .media-layout .device-control-card { min-height: 134px; }
+      .server-layout { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+      .server-tile { min-height: 48px; grid-template-columns: 24px 1fr; gap: 8px; align-items: center; padding: 9px 10px; border-radius: 10px; }
+      .server-tile.active { border-color: rgba(75, 214, 105, .45); }
+      .server-tile.active ha-icon { color: #4bd669; }
+      .custom-card-grid, .server-custom-card-grid { width: min(820px, 100%); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .server-custom-card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+      .lovelace-card-host { min-width: 0; }
       .rooms-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
       .room-card { min-height: 136px; display: grid; grid-template-columns: 48px 1fr; grid-template-rows: auto auto; gap: 10px 14px; align-items: center; padding: 18px; border-radius: 18px; background: linear-gradient(135deg, rgba(20, 24, 57, .74), rgba(12, 16, 43, .64)); border: 1px solid rgba(125, 145, 255, .20); text-align: left; box-shadow: 0 20px 36px rgba(0, 0, 0, .18); }
       .room-card.active { border-color: rgba(44, 156, 255, .62); box-shadow: 0 0 34px rgba(44, 156, 255, .18); }
@@ -623,7 +926,7 @@ class HaNeoDashboard extends HTMLElement {
       .device-control-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
       .device-control-buttons button { min-height: 26px; border-radius: 999px; background: rgba(44, 156, 255, .18); color: var(--neo-text); font-size: 11px; font-weight: 800; }
       .device-empty { padding: 16px; color: var(--neo-muted); text-align: center; }
-      .bottom-nav { grid-area: nav; align-self: end; justify-self: center; display: flex; gap: 8px; width: min(720px, 100%); padding: 7px 12px; border-radius: 28px 28px 0 0; background: linear-gradient(180deg, rgba(27, 31, 78, .92), rgba(11, 14, 39, .96)); box-shadow: 0 -8px 32px rgba(30, 66, 210, .25); }
+      .bottom-nav { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); display: flex; gap: 8px; width: min(720px, calc(100% - 64px)); padding: 7px 12px; border-radius: 28px 28px 0 0; background: linear-gradient(180deg, rgba(27, 31, 78, .92), rgba(11, 14, 39, .96)); box-shadow: 0 -8px 32px rgba(30, 66, 210, .25); }
       .nav-item { position: relative; display: grid; gap: 3px; justify-items: center; flex: 1 1 0; min-width: 54px; padding: 6px 4px; background: transparent; color: var(--neo-muted); font-size: 10px; }
       .nav-item ha-icon { color: currentColor; width: 22px; height: 22px; }
       .nav-item.active { color: var(--neo-text); }
@@ -661,6 +964,11 @@ class HaNeoDashboard extends HTMLElement {
         .gauge-value { font-size: 23px; }
         .gauge-unit { font-size: 14px; }
         .page-grid, .rooms-grid { width: min(650px, 100%); gap: 14px; }
+        .page-grid-wide, .full-page-grid, .server-layout, .custom-card-grid, .server-custom-card-grid { width: min(820px, 100%); gap: 10px; }
+        .history-panel { min-height: 176px; }
+        .history-panel svg { height: 76px; }
+        .is-content-page { grid-template-columns: 252px 1fr; grid-template-areas: 'left content' 'left nav'; padding-right: 64px; }
+        .server-tile { min-height: 44px; padding: 8px 9px; }
         .rooms-grid { grid-template-columns: repeat(2, minmax(200px, 1fr)); }
         .room-card { min-height: 118px; padding: 14px; }
         .feature-tile { min-height: 96px; padding: 15px; }
@@ -671,9 +979,10 @@ class HaNeoDashboard extends HTMLElement {
         ha-card { min-height: 100dvh; height: auto; }
         .dashboard-shell { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'content' 'right' 'left' 'nav'; padding: 24px 16px 0; min-height: 100dvh; }
         .right-panel { grid-template-columns: repeat(2, minmax(140px, 1fr)); padding-right: 0; }
-        .page-grid, .rooms-grid { grid-template-columns: 1fr; }
+        .page-grid, .rooms-grid, .page-grid-wide, .full-page-grid, .server-layout, .custom-card-grid, .server-custom-card-grid { grid-template-columns: 1fr; }
+        .span-2, .span-3, .span-4 { grid-column: auto; }
         .room-title { margin-bottom: 28px; }
-        .bottom-nav { overflow-x: auto; justify-self: stretch; }
+        .bottom-nav { position: static; transform: none; width: 100%; overflow-x: auto; justify-self: stretch; }
       }
     `;
   }
@@ -696,39 +1005,36 @@ const DEFAULT_PAGES = [
   { id: 'rooms', label: 'Räume', title: 'RAUMÜBERSICHT', subtitle: 'Wohnung', icon: 'mdi:floor-plan', type: 'rooms' },
   { id: 'overview', label: 'Übersicht', title: 'WOHNZIMMER', subtitle: 'Erdgeschoss', icon: 'mdi:rocket-launch', type: 'overview' },
   {
-    id: 'climate', label: 'Klima', title: 'KLIMA', subtitle: 'Heizung und Luft', icon: 'mdi:heat-wave',
+    id: 'climate', label: 'Klima', title: 'KLIMA', subtitle: '7 Tage Verlauf und Heizung', icon: 'mdi:heat-wave',
     tiles: [
-      { name: 'Heizung', entity: 'climate.{prefix}', icon: 'mdi:radiator', tap_action: { action: 'more-info', entity: 'climate.{prefix}' } },
-      { name: 'Heizung Boost', icon: 'mdi:fire', label: '22 °C setzen', tap_action: { action: 'call-service', service: 'climate.set_temperature', target: { entity_id: 'climate.{prefix}' }, data: { temperature: 22 } } },
-      { name: 'Komfortszene', icon: 'mdi:home-thermometer', label: 'Szene starten', tap_action: { action: 'call-service', service: 'scene.turn_on', target: { entity_id: 'scene.{prefix}_comfort' } } },
-      { name: 'Thermostatdetails', entity: 'sensor.{prefix}_temperature', icon: 'mdi:thermometer', tap_action: { action: 'more-info', entity: 'sensor.{prefix}_temperature' } },
+      { name: 'Heizung', entity: 'climate.{prefix}', icon: 'mdi:radiator', controls: heatingControls('climate.{prefix}'), tap_action: { action: 'more-info', entity: 'climate.{prefix}' } },
     ],
   },
   {
-    id: 'lights', label: 'Lichter', title: 'LICHTER', subtitle: 'Raumstimmung', icon: 'mdi:lightbulb-on-outline',
+    id: 'lights', label: 'Lichter', title: 'LICHTER', subtitle: 'Alle Leuchten im Raum', icon: 'mdi:lightbulb-on-outline',
     tiles: [
-      { name: 'Alle Lichter', entity: 'light.{prefix}_all', icon: 'mdi:lightbulb-group', tap_action: { action: 'toggle', entity: 'light.{prefix}_all' } },
-      { name: 'Stehlampe', entity: 'light.{prefix}_main', icon: 'mdi:floor-lamp', tap_action: { action: 'toggle', entity: 'light.{prefix}_main' } },
-      { name: 'Deckenspots', entity: 'light.{prefix}_ceiling', icon: 'mdi:ceiling-light-multiple', tap_action: { action: 'toggle', entity: 'light.{prefix}_ceiling' } },
-      { name: 'Kinolicht', icon: 'mdi:movie-open', label: 'Szene starten', tap_action: { action: 'call-service', service: 'scene.turn_on', target: { entity_id: 'scene.{prefix}_movie' } } },
+      { name: 'Alle Lichter', entity: 'light.{prefix}_all', icon: 'mdi:lightbulb-group', controls: lightControls('light.{prefix}_all'), tap_action: { action: 'toggle', entity: 'light.{prefix}_all' } },
+      { name: 'Hauptlicht', entity: 'light.{prefix}_main', icon: 'mdi:ceiling-light-multiple', controls: lightControls('light.{prefix}_main'), tap_action: { action: 'toggle', entity: 'light.{prefix}_main' } },
+      { name: 'Schreibtischlicht', entity: 'light.{prefix}_desk', icon: 'mdi:desk-lamp', controls: lightControls('light.{prefix}_desk'), tap_action: { action: 'toggle', entity: 'light.{prefix}_desk' } },
+      { name: 'Akzentlicht', entity: 'light.{prefix}_accent', icon: 'mdi:led-strip-variant', controls: lightControls('light.{prefix}_accent'), tap_action: { action: 'toggle', entity: 'light.{prefix}_accent' } },
     ],
   },
   {
-    id: 'security', label: 'Sicherheit', title: 'SICHERHEIT', subtitle: 'Schutz und Kameras', icon: 'mdi:shield-home-outline',
+    id: 'security', label: 'Sicherheit', title: 'SICHERHEIT', subtitle: 'Kamerafeed, Tür und Fenster', icon: 'mdi:shield-home-outline',
     tiles: [
+      { name: 'Kamerafeed', entity: 'camera.{prefix}', icon: 'mdi:cctv', tap_action: { action: 'more-info', entity: 'camera.{prefix}' } },
+      { name: 'Türsensor', entity: 'binary_sensor.{prefix}_door', icon: 'mdi:door', tap_action: { action: 'more-info', entity: 'binary_sensor.{prefix}_door' } },
+      { name: 'Fenstersensor', entity: 'binary_sensor.{prefix}_window', icon: 'mdi:window-closed-variant', tap_action: { action: 'more-info', entity: 'binary_sensor.{prefix}_window' } },
       { name: 'Alarm', entity: 'alarm_control_panel.home_alarm', icon: 'mdi:shield-lock', tap_action: { action: 'more-info', entity: 'alarm_control_panel.home_alarm' } },
-      { name: 'Kamera Eingang', entity: 'camera.{prefix}', icon: 'mdi:cctv', tap_action: { action: 'more-info', entity: 'camera.{prefix}' } },
-      { name: 'Haustür verriegeln', entity: 'lock.{prefix}', icon: 'mdi:lock', tap_action: { action: 'call-service', service: 'lock.lock', target: { entity_id: 'lock.{prefix}' } } },
-      { name: 'Kameras öffnen', icon: 'mdi:video-box', label: 'Navigation', tap_action: { action: 'navigate', navigation_path: '/lovelace/security' } },
     ],
   },
   {
-    id: 'media', label: 'Medien', title: 'MEDIEN', subtitle: 'Musik und TV', icon: 'mdi:play-box-outline',
+    id: 'media', label: 'Medien', title: 'MEDIEN', subtitle: 'Xbox, PlayStation und Apple TV', icon: 'mdi:play-box-outline',
     tiles: [
-      { name: 'TV', entity: 'media_player.{prefix}_tv', icon: 'mdi:television', tap_action: { action: 'toggle', entity: 'media_player.{prefix}_tv' } },
-      { name: 'Lautsprecher', entity: 'media_player.{prefix}_speaker', icon: 'mdi:speaker', tap_action: { action: 'more-info', entity: 'media_player.{prefix}_speaker' } },
-      { name: 'Play/Pause', icon: 'mdi:play-pause', label: 'Lautsprecher', tap_action: { action: 'call-service', service: 'media_player.media_play_pause', target: { entity_id: 'media_player.{prefix}_speaker' } } },
-      { name: 'Kinoszene', icon: 'mdi:movie', label: 'Lichter + Medien', tap_action: { action: 'call-service', service: 'scene.turn_on', target: { entity_id: 'scene.{prefix}_movie' } } },
+      { name: 'Xbox', entity: 'media_player.{prefix}_xbox', icon: 'mdi:microsoft-xbox', tap_action: { action: 'toggle', entity: 'media_player.{prefix}_xbox' } },
+      { name: 'PlayStation', entity: 'media_player.{prefix}_playstation', icon: 'mdi:sony-playstation', tap_action: { action: 'toggle', entity: 'media_player.{prefix}_playstation' } },
+      { name: 'Apple TV', entity: 'media_player.{prefix}_apple_tv', icon: 'mdi:apple', tap_action: { action: 'toggle', entity: 'media_player.{prefix}_apple_tv' } },
+      { name: 'Play/Pause', icon: 'mdi:play-pause', label: 'Apple TV', tap_action: { action: 'call-service', service: 'media_player.media_play_pause', target: { entity_id: 'media_player.{prefix}_apple_tv' } } },
     ],
   },
   {
@@ -750,21 +1056,72 @@ const DEFAULT_PAGES = [
     ],
   },
   {
-    id: 'server', label: 'Server', title: 'SERVER', subtitle: 'Dienste und Sensoren', icon: 'mdi:server-network', rooms: ['office'],
-    tiles: [
-      { name: 'Jellyfin', entity: 'sensor.jellyfin_status', icon: 'mdi:movie-open-play', tap_action: { action: 'more-info', entity: 'sensor.jellyfin_status' } },
-      { name: 'Sonarr', entity: 'sensor.sonarr_status', icon: 'mdi:television-classic', tap_action: { action: 'more-info', entity: 'sensor.sonarr_status' } },
-      { name: 'Radarr', entity: 'sensor.radarr_status', icon: 'mdi:filmstrip', tap_action: { action: 'more-info', entity: 'sensor.radarr_status' } },
-      { name: 'Server', entity: 'sensor.server_status', icon: 'mdi:server', tap_action: { action: 'more-info', entity: 'sensor.server_status' } },
+    id: 'server', label: 'Server', title: 'SERVER', subtitle: 'MediaCenter22, Fritz!Box und Dienste', icon: 'mdi:server-network', rooms: ['office'],
+    server: { name: 'MediaCenter22', icon: 'mdi:nas', entity: 'binary_sensor.192_168_178_22', tap_action: { action: 'more-info', entity: 'binary_sensor.192_168_178_22' } },
+    server_status_sections: [
+      {
+        heading: 'CPU', icon: 'mdi:nas', badges: [
+          { entity: 'sensor.192_168_178_22_cpu_auslastung', icon: 'phu:intel-cpu', ok_below: 50, warning_above: 50, name: 'CPU Auslastung' },
+          { entity: 'sensor.192_168_178_22_k10temp_0_temperatur', icon: 'mdi:thermometer', ok_below: 75, critical_above: 74, name: 'CPU Temperatur' },
+        ],
+      },
+      {
+        heading: 'Lüfter', icon: 'mdi:fan', badges: [
+          { entity: 'sensor.mediacenter22_fan_1', icon: 'mdi:fan', color: 'blue', name: 'Lüfter 1' },
+          { entity: 'sensor.mediacenter22_fan_2', icon: 'mdi:fan', color: 'blue', name: 'Lüfter 2' },
+        ],
+      },
+      {
+        heading: 'Netzwerk', icon: 'mdi:network', badges: [
+          { entity: 'sensor.mediacenter22_network_download', icon: 'mdi:download-network', color: 'blue', name: 'Download' },
+          { entity: 'sensor.mediacenter22_network_upload', icon: 'mdi:upload-network', color: 'blue', name: 'Upload' },
+        ],
+      },
+      {
+        heading: 'RAM', icon: 'mdi:memory', badges: [
+          { entity: 'sensor.mediacenter22_ram_usage', icon: 'mdi:memory', ok_below: 50, warning_above: 50, name: 'RAM Nutzung' },
+          { entity: 'sensor.mediacenter22_ram_free', icon: 'mdi:database', color: 'green', name: 'RAM Frei' },
+        ],
+      },
+      {
+        heading: 'Speicher', icon: 'mdi:harddisk', badges: [
+          { entity: 'sensor.mediacenter22_storage_usage', icon: 'mdi:harddisk', ok_below: 70, warning_above: 70, name: 'Speicher Nutzung' },
+          { entity: 'sensor.mediacenter22_storage_free', icon: 'mdi:database-outline', color: 'yellow', name: 'Speicher Frei' },
+        ],
+      },
+      {
+        heading: 'Festplatten', icon: 'mdi:harddisk', badges: [
+          { entity: 'sensor.mediacenter22_disk_1_temperature', icon: 'mdi:harddisk', ok_below: 45, warning_above: 45, name: 'Disk 1' },
+          { entity: 'sensor.mediacenter22_disk_2_temperature', icon: 'mdi:harddisk', ok_below: 45, warning_above: 45, name: 'Disk 2' },
+          { entity: 'sensor.mediacenter22_disk_3_temperature', icon: 'mdi:harddisk', ok_below: 45, warning_above: 45, name: 'Disk 3' },
+          { entity: 'sensor.mediacenter22_disk_4_temperature', icon: 'mdi:harddisk', ok_below: 45, warning_above: 45, name: 'Disk 4' },
+        ],
+      },
     ],
-  },
-  {
-    id: 'systems', label: 'System', title: 'SYSTEM', subtitle: 'Infrastruktur', icon: 'mdi:database-cog-outline',
     tiles: [
-      { name: 'USV', entity: 'sensor.ups_battery', icon: 'mdi:battery-high', tap_action: { action: 'more-info', entity: 'sensor.ups_battery' } },
-      { name: 'Router', entity: 'binary_sensor.router_status', icon: 'mdi:router-network', tap_action: { action: 'more-info', entity: 'binary_sensor.router_status' } },
-      { name: 'Server', entity: 'sensor.server_status', icon: 'mdi:server', tap_action: { action: 'more-info', entity: 'sensor.server_status' } },
-      { name: 'Protokolle', icon: 'mdi:text-box-search', label: 'Navigation', tap_action: { action: 'navigate', navigation_path: '/config/logs' } },
+      { name: 'MediaCenter22', entity: 'sensor.mediacenter22_status', icon: 'mdi:power', span: 2, tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_status' } },
+      { name: 'Download', entity: 'sensor.fritzbox_download_speed', icon: 'mdi:download-network', tap_action: { action: 'more-info', entity: 'sensor.fritzbox_download_speed' } },
+      { name: 'Upload', entity: 'sensor.fritzbox_upload_speed', icon: 'mdi:upload-network', tap_action: { action: 'more-info', entity: 'sensor.fritzbox_upload_speed' } },
+      { name: 'Empfangen', entity: 'sensor.fritzbox_received', icon: 'mdi:download', tap_action: { action: 'more-info', entity: 'sensor.fritzbox_received' } },
+      { name: 'Gesendet', entity: 'sensor.fritzbox_sent', icon: 'mdi:upload', tap_action: { action: 'more-info', entity: 'sensor.fritzbox_sent' } },
+      { name: 'Firmware', entity: 'sensor.fritzbox_firmware', icon: 'mdi:router-wireless-settings', span: 2, tap_action: { action: 'more-info', entity: 'sensor.fritzbox_firmware' } },
+      { name: 'Paperless Eingang', entity: 'sensor.paperless_inbox', icon: 'mdi:inbox-arrow-down', span: 2, tap_action: { action: 'more-info', entity: 'sensor.paperless_inbox' } },
+      { name: 'Paperless Dokumente', entity: 'sensor.paperless_documents', icon: 'mdi:file-document', span: 2, tap_action: { action: 'more-info', entity: 'sensor.paperless_documents' } },
+      { name: 'Jellyseerr', entity: 'binary_sensor.jellyseer_192_168_178_22_5055', icon: 'phu:jellyseerr', tap_action: { action: 'url', url_path: 'http://192.168.178.22:5055' } },
+      { name: 'Immich Fotos', entity: 'sensor.immich_photos', icon: 'mdi:camera', tap_action: { action: 'more-info', entity: 'sensor.immich_photos' } },
+      { name: 'Immich Videos', entity: 'sensor.immich_videos', icon: 'mdi:video', tap_action: { action: 'more-info', entity: 'sensor.immich_videos' } },
+      { name: 'Immich Speicher', entity: 'sensor.immich_storage', icon: 'mdi:harddisk', span: 2, tap_action: { action: 'more-info', entity: 'sensor.immich_storage' } },
+      { name: 'Jellyfin Filme', entity: 'sensor.jellyfin_movies', icon: 'mdi:movie-open-play', tap_action: { action: 'more-info', entity: 'sensor.jellyfin_movies' } },
+      { name: 'Jellyfin Serien', entity: 'sensor.jellyfin_series', icon: 'mdi:television-classic', tap_action: { action: 'more-info', entity: 'sensor.jellyfin_series' } },
+      { name: 'Jellyfin Episoden', entity: 'sensor.jellyfin_episodes', icon: 'mdi:play-box-multiple', span: 2, tap_action: { action: 'more-info', entity: 'sensor.jellyfin_episodes' } },
+      { name: 'SABnzbd Geschwindigkeit', entity: 'sensor.sabnzbd_speed', icon: 'mdi:download-network', tap_action: { action: 'more-info', entity: 'sensor.sabnzbd_speed' } },
+      { name: 'SABnzbd Abgeschlossen', entity: 'sensor.sabnzbd_completed', icon: 'mdi:download-box', tap_action: { action: 'more-info', entity: 'sensor.sabnzbd_completed' } },
+      { name: 'SABnzbd Queue', entity: 'sensor.sabnzbd_queue', icon: 'mdi:download-multiple', span: 2, tap_action: { action: 'more-info', entity: 'sensor.sabnzbd_queue' } },
+      { name: 'Prowlarr', entity: 'sensor.prowlarr_status', icon: 'mdi:account-key', tap_action: { action: 'more-info', entity: 'sensor.prowlarr_status' } },
+      { name: 'Radarr', entity: 'sensor.radarr_status', icon: 'mdi:filmstrip', tap_action: { action: 'more-info', entity: 'sensor.radarr_status' } },
+      { name: 'Sonarr', entity: 'sensor.sonarr_status', icon: 'mdi:television-classic', tap_action: { action: 'more-info', entity: 'sensor.sonarr_status' } },
+      { name: 'qBittorrent', entity: 'sensor.qbittorrent_status', icon: 'mdi:alpha-q-box', tap_action: { action: 'more-info', entity: 'sensor.qbittorrent_status' } },
+      { name: 'Datenträgerbelegung', entity: 'sensor.synology_rs1221_storage', icon: 'mdi:chart-areaspline', span: 4, tap_action: { action: 'more-info', entity: 'sensor.synology_rs1221_storage' } },
     ],
   },
 ];

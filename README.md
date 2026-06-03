@@ -169,7 +169,38 @@ room_overview_top_tabs:
       entity: weather.home
 ```
 
-Auf Funktionsseiten wie Klima, Lichter oder Server wird rechts keine wiederholte Gauge-Leiste mehr angezeigt. Stattdessen rendert die rechte Seite Gerätesteuerungen aus den Tiles der aktiven Seite; Climate- und Light-Entities erhalten automatisch passende Minus/AN-AUS/Plus-Controls.
+Auf Funktionsseiten wie Klima, Lichter, Sicherheit, Medien oder Server bleibt die linke Statusspalte erhalten; nur die rechte Gauge-Leiste wird ausgeblendet. Der Inhalt nutzt dadurch die zusammengelegte Mittel-/Rechtsfläche: Klima zeigt oben zwei halbbreite 7-Tage-Verläufe, darunter Istwerte und Heizungssteuerung; Lichter zeigt alle Licht-Entities mit AN/AUS und Helligkeit; Sicherheit bereitet Kamerafeed sowie Tür-/Fenstersensoren vor; Medien bündelt Xbox, PlayStation und Apple TV; Server bildet den Fritz!Box-/Paperless-/Immich-/Jellyfin-/SABnzbd-/Medi-arr-Dienstestatus im kompakten Kachelraster ab.
+
+Nur auf dem Server-Reiter kann die linke Statusspalte mit `server_status_sections` überschrieben werden. Das ist für Hardwarewerte wie CPU, Lüfter, Netzwerk, RAM, Speicher und Festplatten gedacht; die restlichen Reiter verwenden weiterhin die normale Statusspalte.
+
+Wenn du für den Server-Reiter eigene Mushroom- oder andere Lovelace-Karten bauen möchtest, kannst du innerhalb einer Seite statt `tiles` auch `cards` verwenden. Diese Einträge werden als echte Home-Assistant-Karten gerendert und können mit normalem Lovelace-/Mushroom-YAML befüllt werden; Platzhalter wie `{prefix}` funktionieren weiterhin:
+
+```yaml
+pages:
+  - id: server
+    label: Server
+    rooms: [office]
+    server_status_sections:
+      - heading: CPU
+        icon: mdi:nas
+        badges:
+          - entity: sensor.192_168_178_22_cpu_auslastung
+            icon: phu:intel-cpu
+            ok_below: 50
+            warning_above: 50
+          - entity: sensor.192_168_178_22_k10temp_0_temperatur
+            icon: mdi:thermometer
+            ok_below: 75
+            critical_above: 74
+    cards:
+      - type: custom:mushroom-template-card
+        primary: MediaCenter22
+        secondary: "{{ states('sensor.mediacenter22_cpu') }} % CPU"
+        icon: mdi:server
+      - type: custom:mushroom-entity-card
+        entity: sensor.fritzbox_download_speed
+        name: Download
+```
 
 Untere Reiter können global oder pro Raum eingeschränkt und erweitert werden. Beispiel: Server nur im Büro anzeigen und im Schlafzimmer Medien ausblenden:
 
@@ -188,7 +219,7 @@ rooms:
   - id: bedroom
     disabled_pages: [media]
   - id: office
-    enabled_pages: [rooms, overview, climate, lights, maintenance, systems, server]
+    enabled_pages: [rooms, overview, climate, lights, security, media, maintenance, systems, server]
 ```
 
 
@@ -313,7 +344,7 @@ pages:
   - id: lights
     label: Lichter
     title: LICHTER
-    subtitle: Raumstimmung
+    subtitle: Alle Leuchten im Raum
     icon: mdi:lightbulb-on-outline
     tiles:
       - name: Alle Lichter
@@ -322,14 +353,12 @@ pages:
         tap_action:
           action: toggle
           entity: light.living_room_all
-      - name: Kinolicht
-        icon: mdi:movie-open
-        label: Szene starten
+      - name: Akzentlicht
+        entity: light.living_room_accent
+        icon: mdi:led-strip-variant
         tap_action:
-          action: call-service
-          service: scene.turn_on
-          target:
-            entity_id: scene.living_room_movie
+          action: toggle
+          entity: light.living_room_accent
 ```
 
 ## Bilder
