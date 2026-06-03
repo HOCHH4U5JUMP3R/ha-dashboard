@@ -22,7 +22,7 @@ HACS installiert die Ressource aus `dist/ha-dashboard.js`. Die Datei heißt bewu
 
 ## Vollbild-Verwendung
 
-Eine vollständige View liegt unter `dist/neo-living-room-card.yaml`. Wichtig ist `panel: true`, damit Home Assistant die Card nicht in ein normales Kartenraster setzt. Für dein iPad Air 2020 ist das Layout auf die Landscape-CSS-Viewport-Größe **1180 × 820 px** abgestimmt; das Gerät besitzt physisch **2360 × 1640 Pixel** bei DPR 2.0. Quelle: [YesViz iPad Air 2020](https://yesviz.com/devices/ipad-air-2020/).
+Eine vollständige View liegt unter `dist/neo-apartment-dashboard.yaml`. Wichtig ist `panel: true`, damit Home Assistant die Card nicht in ein normales Kartenraster setzt. Für dein iPad Air 2020 ist das Layout auf die Landscape-CSS-Viewport-Größe **1180 × 820 px** abgestimmt; das Gerät besitzt physisch **2360 × 1640 Pixel** bei DPR 2.0. Quelle: [YesViz iPad Air 2020](https://yesviz.com/devices/ipad-air-2020/).
 
 ```yaml
 title: Neo Home
@@ -39,6 +39,8 @@ views:
         subtitle: Erdgeschoss
         background_image: /local/neo-dashboard/background.jpg
         image: /local/neo-dashboard/living-room.png
+        default_page: rooms
+        default_room: living_room
 ```
 
 
@@ -70,7 +72,63 @@ Alle sichtbaren Bereiche sind über YAML konfigurierbar:
 | `systems` | Linke Statusliste mit Icon, Entity, Label, Farbe und Aktion. |
 | `metrics` | Linke Balkenwerte mit Entity, Maximalwert, Einheit und Aktion. |
 | `gauges` | Rechte runde Karten mit Entity, optionaler `value_entity`, Einheit, Farbe und Aktion. |
+| `rooms` | Raumliste für Schlafzimmer, Wohnzimmer, Büro, Küche, Badezimmer, Garage und Keller. |
+| `default_room` | Raum, der nach dem Öffnen bzw. nach dem Zurückwechseln auf Raumseiten aktiv ist. |
+| `room_overview_gauges` | Rechte Gauges der Raumübersicht, z. B. Durchschnittstemperatur oder aktive Lichter. |
 | `pages` | Untere Navigation und interne Seiten mit beliebig vielen Funktionskacheln. |
+
+
+## Räume und Raumübersicht
+
+Die Card startet standardmäßig mit `default_page: rooms`. Diese Raumübersicht passt optisch zum Neo-Design und zeigt große Auswahlkacheln für:
+
+- Schlafzimmer
+- Wohnzimmer
+- Büro
+- Küche
+- Badezimmer
+- Garage
+- Keller
+
+Beim Tippen auf eine Raumkachel wechselt die Card intern auf die Übersichtsseite dieses Raums. Die Seiten `Klima`, `Lichter`, `Sicherheit`, `Medien`, `Wartung`, `Anwesenheit` und `System` bleiben gleich aufgebaut, verwenden aber Platzhalter wie `{prefix}` und werden dadurch auf den aktuell gewählten Raum gemappt.
+
+Minimalbeispiel für eigene Räume:
+
+```yaml
+default_page: rooms
+default_room: living_room
+rooms:
+  - id: bedroom
+    title: SCHLAFZIMMER
+    subtitle: Ruhen
+    icon: mdi:bed-king-outline
+    image: /local/neo-dashboard/bedroom.png
+    background_image: /local/neo-dashboard/bedroom-background.jpg
+    temperature_entity: sensor.bedroom_temperature
+    humidity_entity: sensor.bedroom_humidity
+    all_lights_entity: light.bedroom_all
+  - id: living_room
+    title: WOHNZIMMER
+    subtitle: Erdgeschoss
+    icon: mdi:sofa-outline
+    image: /local/neo-dashboard/living-room.png
+    background_image: /local/neo-dashboard/living_room-background.jpg
+    temperature_entity: sensor.living_room_temperature
+    humidity_entity: sensor.living_room_humidity
+    all_lights_entity: light.living_room_all
+```
+
+Für Raumseiten kannst du Platzhalter verwenden. `{prefix}` entspricht standardmäßig der Raum-ID, kann aber pro Raum mit `prefix` überschrieben werden:
+
+```yaml
+tiles:
+  - name: Alle Lichter
+    entity: light.{prefix}_all
+    icon: mdi:lightbulb-group
+    tap_action:
+      action: toggle
+      entity: light.{prefix}_all
+```
 
 ## Funktionen und Aktionen
 
@@ -116,6 +174,10 @@ Die untere Navigation wird über `pages` gesteuert. Eine Seite mit `type: overvi
 
 ```yaml
 pages:
+  - id: rooms
+    label: Räume
+    icon: mdi:floor-plan
+    type: rooms
   - id: overview
     label: Übersicht
     icon: mdi:rocket-launch
@@ -166,4 +228,4 @@ frontend:
 
 ## Entwicklung
 
-Die installierbare HACS-Card befindet sich in `dist/ha-dashboard.js`. Die Beispiel-View liegt in `dist/neo-living-room-card.yaml`, damit die für die Dashboard-Resource relevanten Dateien am HACS-kompatiblen Ort liegen.
+Die installierbare HACS-Card befindet sich in `dist/ha-dashboard.js`. Die Beispiel-View liegt in `dist/neo-apartment-dashboard.yaml`, damit die für die Dashboard-Resource relevanten Dateien am HACS-kompatiblen Ort liegen.
