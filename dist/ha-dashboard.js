@@ -477,7 +477,7 @@ class HaNeoDashboard extends HTMLElement {
       }
       .left-panel { grid-area: left; }
       .content-panel { grid-area: content; display: grid; align-content: start; justify-items: center; min-width: 0; }
-      .right-panel { grid-area: right; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; }
+      .right-panel { grid-area: right; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; padding-right: 18px; }
       .tabs { display: flex; margin-bottom: 30px; }
       .tab { min-width: 104px; min-height: 48px; padding: 0 16px; border: 1px solid rgba(170, 180, 230, .35); background: rgba(16, 19, 45, .55); border-radius: 6px; font-size: 12px; font-weight: 800; }
       .tab-active { background: rgba(255, 255, 255, .96); color: #101225; }
@@ -561,7 +561,7 @@ class HaNeoDashboard extends HTMLElement {
         .room-image-wrap { width: min(520px, 92%); }
         .room-image { min-height: 230px; max-height: 330px; }
         .quick-chips { margin-top: 24px; padding: 18px 48px; }
-        .right-panel { gap: 10px; }
+        .right-panel { gap: 10px; padding-right: 8px; }
         .gauge-card { min-height: 134px; padding: 8px 6px; }
         .gauge-ring { width: 96px; height: 96px; }
         .gauge-value { font-size: 23px; }
@@ -576,7 +576,7 @@ class HaNeoDashboard extends HTMLElement {
       @media (max-width: 1000px) {
         ha-card { min-height: 100dvh; height: auto; }
         .dashboard-shell { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'content' 'right' 'left' 'nav'; padding: 24px 16px 0; min-height: 100dvh; }
-        .right-panel { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+        .right-panel { grid-template-columns: repeat(2, minmax(140px, 1fr)); padding-right: 0; }
         .page-grid, .rooms-grid { grid-template-columns: 1fr; }
         .room-title { margin-bottom: 28px; }
         .bottom-nav { overflow-x: auto; justify-self: stretch; }
