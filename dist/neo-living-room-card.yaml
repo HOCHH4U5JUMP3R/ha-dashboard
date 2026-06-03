@@ -116,7 +116,21 @@ views:
             unit: °C
             max: 30
             color: '#2c9cff'
-            controls: ['-', '+']
+            controls:
+              - label: '-'
+                tap_action:
+                  action: climate-temperature-step
+                  entity: climate.living_room
+                  step: -0.5
+              - label_mode: climate_power
+                tap_action:
+                  action: climate-toggle-heat
+                  entity: climate.living_room
+              - label: '+'
+                tap_action:
+                  action: climate-temperature-step
+                  entity: climate.living_room
+                  step: 0.5
             tap_action:
               action: more-info
               entity: climate.living_room
@@ -127,7 +141,21 @@ views:
             unit: '%'
             max: 100
             color: '#2c9cff'
-            controls: ['OFF', 'DIM']
+            controls:
+              - label: '-'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.living_room_all
+                  step: -20
+              - label_mode: power
+                tap_action:
+                  action: toggle
+                  entity: light.living_room_all
+              - label: '+'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.living_room_all
+                  step: 20
             tap_action:
               action: toggle
               entity: light.living_room_all
@@ -138,7 +166,21 @@ views:
             unit: '%'
             max: 100
             color: '#2c9cff'
-            controls: ['OFF', 'DIM']
+            controls:
+              - label: '-'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.floor_lamp
+                  step: -20
+              - label_mode: power
+                tap_action:
+                  action: toggle
+                  entity: light.floor_lamp
+              - label: '+'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.floor_lamp
+                  step: 20
             tap_action:
               action: toggle
               entity: light.floor_lamp
@@ -149,7 +191,21 @@ views:
             unit: '%'
             max: 100
             color: '#2c9cff'
-            controls: ['ON', '']
+            controls:
+              - label: '-'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.ceiling_spots
+                  step: -20
+              - label_mode: power
+                tap_action:
+                  action: toggle
+                  entity: light.ceiling_spots
+              - label: '+'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.ceiling_spots
+                  step: 20
             tap_action:
               action: toggle
               entity: light.ceiling_spots
