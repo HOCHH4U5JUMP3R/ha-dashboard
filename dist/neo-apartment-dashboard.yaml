@@ -58,7 +58,7 @@ views:
             temperature_entity: sensor.office_temperature
             humidity_entity: sensor.office_humidity
             all_lights_entity: light.office_all
-            enabled_pages: [rooms, overview, climate, lights, maintenance, systems, server]
+            enabled_pages: [rooms, overview, climate, lights, security, media, maintenance, systems, server]
             socket_entities:
               - name: Drucker
                 entity: switch.office_printer
@@ -318,7 +318,7 @@ views:
           - id: climate
             label: Klima
             title: KLIMA
-            subtitle: Heizung und Luft
+            subtitle: 7 Tage Verlauf und Heizung
             icon: mdi:heat-wave
             tiles:
               - name: Heizung
@@ -327,34 +327,10 @@ views:
                 tap_action:
                   action: more-info
                   entity: climate.{prefix}
-              - name: Heizung Boost
-                icon: mdi:fire
-                label: 22 °C setzen
-                tap_action:
-                  action: call-service
-                  service: climate.set_temperature
-                  target:
-                    entity_id: climate.{prefix}
-                  data:
-                    temperature: 22
-              - name: Komfortszene
-                icon: mdi:home-thermometer
-                label: Szene starten
-                tap_action:
-                  action: call-service
-                  service: scene.turn_on
-                  target:
-                    entity_id: scene.{prefix}_comfort
-              - name: Thermostatdetails
-                entity: sensor.{prefix}_temperature
-                icon: mdi:thermometer
-                tap_action:
-                  action: more-info
-                  entity: sensor.{prefix}_temperature
           - id: lights
             label: Lichter
             title: LICHTER
-            subtitle: Raumstimmung
+            subtitle: Alle Leuchten im Raum
             icon: mdi:lightbulb-on-outline
             tiles:
               - name: Alle Lichter
@@ -363,92 +339,86 @@ views:
                 tap_action:
                   action: toggle
                   entity: light.{prefix}_all
-              - name: Stehlampe
+              - name: Hauptlicht
                 entity: light.{prefix}_main
-                icon: mdi:floor-lamp
-                tap_action:
-                  action: toggle
-                  entity: light.{prefix}_main
-              - name: Deckenspots
-                entity: light.{prefix}_ceiling
                 icon: mdi:ceiling-light-multiple
                 tap_action:
                   action: toggle
-                  entity: light.{prefix}_ceiling
-              - name: Kinolicht
-                icon: mdi:movie-open
-                label: Szene starten
+                  entity: light.{prefix}_main
+              - name: Schreibtischlicht
+                entity: light.{prefix}_desk
+                icon: mdi:desk-lamp
                 tap_action:
-                  action: call-service
-                  service: scene.turn_on
-                  target:
-                    entity_id: scene.{prefix}_movie
+                  action: toggle
+                  entity: light.{prefix}_desk
+              - name: Akzentlicht
+                entity: light.{prefix}_accent
+                icon: mdi:led-strip-variant
+                tap_action:
+                  action: toggle
+                  entity: light.{prefix}_accent
           - id: security
             label: Sicherheit
             title: SICHERHEIT
-            subtitle: Schutz und Kameras
+            subtitle: Kamerafeed, Tür und Fenster
             icon: mdi:shield-home-outline
             tiles:
+              - name: Kamerafeed
+                entity: camera.{prefix}
+                icon: mdi:cctv
+                tap_action:
+                  action: more-info
+                  entity: camera.{prefix}
+              - name: Türsensor
+                entity: binary_sensor.{prefix}_door
+                icon: mdi:door
+                tap_action:
+                  action: more-info
+                  entity: binary_sensor.{prefix}_door
+              - name: Fenstersensor
+                entity: binary_sensor.{prefix}_window
+                icon: mdi:window-closed-variant
+                tap_action:
+                  action: more-info
+                  entity: binary_sensor.{prefix}_window
               - name: Alarm
                 entity: alarm_control_panel.home_alarm
                 icon: mdi:shield-lock
                 tap_action:
                   action: more-info
                   entity: alarm_control_panel.home_alarm
-              - name: Kamera Eingang
-                entity: camera.{prefix}
-                icon: mdi:cctv
-                tap_action:
-                  action: more-info
-                  entity: camera.{prefix}
-              - name: Haustür verriegeln
-                entity: lock.{prefix}
-                icon: mdi:lock
-                tap_action:
-                  action: call-service
-                  service: lock.lock
-                  target:
-                    entity_id: lock.{prefix}
-              - name: Kameras öffnen
-                icon: mdi:video-box
-                label: Navigation
-                tap_action:
-                  action: navigate
-                  navigation_path: /lovelace/security
           - id: media
             label: Medien
             title: MEDIEN
-            subtitle: Musik und TV
+            subtitle: Xbox, PlayStation und Apple TV
             icon: mdi:play-box-outline
             tiles:
-              - name: TV
-                entity: media_player.{prefix}_tv
-                icon: mdi:television
+              - name: Xbox
+                entity: media_player.{prefix}_xbox
+                icon: mdi:microsoft-xbox
                 tap_action:
                   action: toggle
-                  entity: media_player.{prefix}_tv
-              - name: Lautsprecher
-                entity: media_player.{prefix}_speaker
-                icon: mdi:speaker
+                  entity: media_player.{prefix}_xbox
+              - name: PlayStation
+                entity: media_player.{prefix}_playstation
+                icon: mdi:sony-playstation
                 tap_action:
-                  action: more-info
-                  entity: media_player.{prefix}_speaker
+                  action: toggle
+                  entity: media_player.{prefix}_playstation
+              - name: Apple TV
+                entity: media_player.{prefix}_apple_tv
+                icon: mdi:apple
+                tap_action:
+                  action: toggle
+                  entity: media_player.{prefix}_apple_tv
               - name: Play/Pause
                 icon: mdi:play-pause
-                label: Lautsprecher
+                label: Apple TV
                 tap_action:
                   action: call-service
                   service: media_player.media_play_pause
                   target:
-                    entity_id: media_player.{prefix}_speaker
-              - name: Kinoszene
-                icon: mdi:movie
-                label: Lichter + Medien
-                tap_action:
-                  action: call-service
-                  service: scene.turn_on
-                  target:
-                    entity_id: scene.{prefix}_movie
+                    entity_id: media_player.{prefix}_apple_tv
           - id: maintenance
             label: Wartung
             title: WARTUNG
@@ -512,34 +482,99 @@ views:
           - id: server
             label: Server
             title: SERVER
-            subtitle: Dienste und Sensoren
+            subtitle: MediaCenter22, Fritz!Box und Dienste
             icon: mdi:server-network
             rooms: [office]
             tiles:
-              - name: Jellyfin
-                entity: sensor.jellyfin_status
+              - name: MediaCenter22
+                entity: sensor.mediacenter22_status
+                icon: mdi:power
+                span: 2
+                tap_action:
+                  action: more-info
+                  entity: sensor.mediacenter22_status
+              - name: CPU
+                entity: sensor.mediacenter22_cpu
+                icon: mdi:cpu-64-bit
+              - name: Temperatur
+                entity: sensor.mediacenter22_temperature
+                icon: mdi:thermometer
+              - name: Lüfter 1
+                entity: sensor.mediacenter22_fan_1
+                icon: mdi:fan
+              - name: Lüfter 2
+                entity: sensor.mediacenter22_fan_2
+                icon: mdi:fan
+              - name: Download
+                entity: sensor.fritzbox_download_speed
+                icon: mdi:download-network
+              - name: Upload
+                entity: sensor.fritzbox_upload_speed
+                icon: mdi:upload-network
+              - name: Empfangen
+                entity: sensor.fritzbox_received
+                icon: mdi:download
+              - name: Gesendet
+                entity: sensor.fritzbox_sent
+                icon: mdi:upload
+              - name: Firmware
+                entity: sensor.fritzbox_firmware
+                icon: mdi:router-wireless-settings
+                span: 2
+              - name: Paperless Eingang
+                entity: sensor.paperless_inbox
+                icon: mdi:inbox-arrow-down
+                span: 2
+              - name: Paperless Dokumente
+                entity: sensor.paperless_documents
+                icon: mdi:file-document
+                span: 2
+              - name: Immich Fotos
+                entity: sensor.immich_photos
+                icon: mdi:camera
+              - name: Immich Videos
+                entity: sensor.immich_videos
+                icon: mdi:video
+              - name: Immich Speicher
+                entity: sensor.immich_storage
+                icon: mdi:harddisk
+                span: 2
+              - name: Jellyfin Filme
+                entity: sensor.jellyfin_movies
                 icon: mdi:movie-open-play
-                tap_action:
-                  action: more-info
-                  entity: sensor.jellyfin_status
-              - name: Sonarr
-                entity: sensor.sonarr_status
+              - name: Jellyfin Serien
+                entity: sensor.jellyfin_series
                 icon: mdi:television-classic
-                tap_action:
-                  action: more-info
-                  entity: sensor.sonarr_status
+              - name: Jellyfin Episoden
+                entity: sensor.jellyfin_episodes
+                icon: mdi:play-box-multiple
+                span: 2
+              - name: SABnzbd Geschwindigkeit
+                entity: sensor.sabnzbd_speed
+                icon: mdi:download-network
+              - name: SABnzbd Abgeschlossen
+                entity: sensor.sabnzbd_completed
+                icon: mdi:download-box
+              - name: SABnzbd Queue
+                entity: sensor.sabnzbd_queue
+                icon: mdi:download-multiple
+                span: 2
+              - name: Prowlarr
+                entity: sensor.prowlarr_status
+                icon: mdi:account-key
               - name: Radarr
                 entity: sensor.radarr_status
                 icon: mdi:filmstrip
-                tap_action:
-                  action: more-info
-                  entity: sensor.radarr_status
-              - name: Server
-                entity: sensor.server_status
-                icon: mdi:server
-                tap_action:
-                  action: more-info
-                  entity: sensor.server_status
+              - name: Sonarr
+                entity: sensor.sonarr_status
+                icon: mdi:television-classic
+              - name: qBittorrent
+                entity: sensor.qbittorrent_status
+                icon: mdi:alpha-q-box
+              - name: Datenträgerbelegung
+                entity: sensor.synology_rs1221_storage
+                icon: mdi:chart-areaspline
+                span: 3
           - id: systems
             label: System
             title: SYSTEM
