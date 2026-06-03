@@ -38,6 +38,16 @@ views:
             temperature_entity: sensor.living_room_temperature
             humidity_entity: sensor.living_room_humidity
             all_lights_entity: light.living_room_all
+            socket_entities:
+              - name: TV
+                entity: switch.living_room_tv
+              - name: Konsole
+                entity: switch.living_room_console
+            contact_entities:
+              - name: Terrassentür
+                entity: binary_sensor.living_room_patio_door
+              - name: Fenster
+                entity: binary_sensor.living_room_window
           - id: office
             title: BÜRO
             subtitle: Arbeiten
@@ -48,6 +58,17 @@ views:
             temperature_entity: sensor.office_temperature
             humidity_entity: sensor.office_humidity
             all_lights_entity: light.office_all
+            enabled_pages: [rooms, overview, climate, lights, maintenance, systems, server]
+            socket_entities:
+              - name: Drucker
+                entity: switch.office_printer
+              - name: Dock
+                entity: switch.office_dock
+            contact_entities:
+              - name: Fenster
+                entity: binary_sensor.office_window
+              - name: Tür
+                entity: binary_sensor.office_door
           - id: kitchen
             title: KÜCHE
             subtitle: Kochen
@@ -488,6 +509,37 @@ views:
                 tap_action:
                   action: toggle
                   entity: input_boolean.away_mode
+          - id: server
+            label: Server
+            title: SERVER
+            subtitle: Dienste und Sensoren
+            icon: mdi:server-network
+            rooms: [office]
+            tiles:
+              - name: Jellyfin
+                entity: sensor.jellyfin_status
+                icon: mdi:movie-open-play
+                tap_action:
+                  action: more-info
+                  entity: sensor.jellyfin_status
+              - name: Sonarr
+                entity: sensor.sonarr_status
+                icon: mdi:television-classic
+                tap_action:
+                  action: more-info
+                  entity: sensor.sonarr_status
+              - name: Radarr
+                entity: sensor.radarr_status
+                icon: mdi:filmstrip
+                tap_action:
+                  action: more-info
+                  entity: sensor.radarr_status
+              - name: Server
+                entity: sensor.server_status
+                icon: mdi:server
+                tap_action:
+                  action: more-info
+                  entity: sensor.server_status
           - id: systems
             label: System
             title: SYSTEM

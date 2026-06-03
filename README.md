@@ -68,14 +68,16 @@ Alle sichtbaren Bereiche sind über YAML konfigurierbar:
 | --- | --- |
 | `background_image` | Eigenes Vollbild-Hintergrundbild hinter Glow und Panels. |
 | `image` | Zentraler Wohnzimmer-/Raum-Render auf der Übersichtsseite. |
-| `top_tabs` | Reiter links oben, z. B. System- und Wartungsaktionen. |
-| `systems` | Linke Statusliste mit Icon, Entity, Label, Farbe und Aktion. |
+| `top_tabs` | Reiter links oben auf Raumseiten, z. B. System- und Wartungsaktionen. |
+| `room_overview_top_tabs` | Eigene Startseiten-Reiter, standardmäßig Kalender, Todo und Wetter. |
+| `systems` | Linke Statusliste mit Icon, Entity, Label, Farbe und Aktion auf Raumseiten. |
+| `room_overview_systems` | Linke Statusliste auf der Raumübersicht, z. B. Kalender, Todo und Wetter. |
 | `metrics` | Linke Balkenwerte mit Entity, Maximalwert, Einheit und Aktion. |
 | `gauges` | Rechte runde Karten mit Entity, optionaler `value_entity`, Einheit, Farbe und Aktion. |
-| `rooms` | Raumliste für Schlafzimmer, Wohnzimmer, Büro, Küche, Badezimmer, Garage und Keller. |
+| `rooms` | Raumliste für Schlafzimmer, Wohnzimmer, Büro, Küche, Badezimmer, Garage und Keller; pro Raum können Steckdosen-/Kontakt-Entities und Seitenregeln gesetzt werden. |
 | `default_room` | Raum, der nach dem Öffnen bzw. nach dem Zurückwechseln auf Raumseiten aktiv ist. |
 | `room_overview_gauges` | Rechte Gauges der Raumübersicht, z. B. Durchschnittstemperatur oder aktive Lichter. |
-| `pages` | Untere Navigation und interne Seiten mit beliebig vielen Funktionskacheln. |
+| `pages` | Untere Navigation und interne Seiten mit beliebig vielen Funktionskacheln; Seiten können per `rooms`, `exclude_rooms`, `enabled: false`, `enabled_pages` oder `disabled_pages` raumabhängig gesteuert werden. |
 
 
 ## Räume und Raumübersicht
@@ -128,6 +130,65 @@ tiles:
     tap_action:
       action: toggle
       entity: light.{prefix}_all
+```
+
+
+Die Raumkacheln zeigen zusätzlich zu Temperatur, Feuchte und Licht auch aktive Steckdosen sowie offene Tür-/Fensterkontakte. Dafür kannst du pro Raum `socket_entities` und `contact_entities` hinterlegen:
+
+```yaml
+rooms:
+  - id: office
+    title: BÜRO
+    socket_entities:
+      - name: Drucker
+        entity: switch.office_printer
+      - name: Dock
+        entity: switch.office_dock
+    contact_entities:
+      - name: Fenster
+        entity: binary_sensor.office_window
+      - name: Tür
+        entity: binary_sensor.office_door
+```
+
+Die Startseite nutzt eigene linke Reiter und Statuszeilen, damit Wartung/System nicht mehr auf der Raumübersicht erscheinen müssen:
+
+```yaml
+room_overview_top_tabs:
+  - label: KALENDER
+    tap_action:
+      action: more-info
+      entity: calendar.home
+  - label: TODO
+    tap_action:
+      action: more-info
+      entity: todo.home
+  - label: WETTER
+    tap_action:
+      action: more-info
+      entity: weather.home
+```
+
+Auf Funktionsseiten wie Klima, Lichter oder Server wird rechts keine wiederholte Gauge-Leiste mehr angezeigt. Stattdessen rendert die rechte Seite Gerätesteuerungen aus den Tiles der aktiven Seite; Climate- und Light-Entities erhalten automatisch passende Minus/AN-AUS/Plus-Controls.
+
+Untere Reiter können global oder pro Raum eingeschränkt und erweitert werden. Beispiel: Server nur im Büro anzeigen und im Schlafzimmer Medien ausblenden:
+
+```yaml
+pages:
+  - id: server
+    label: Server
+    title: SERVER
+    icon: mdi:server-network
+    rooms: [office]
+    tiles:
+      - name: Jellyfin
+        entity: sensor.jellyfin_status
+        icon: mdi:movie-open-play
+rooms:
+  - id: bedroom
+    disabled_pages: [media]
+  - id: office
+    enabled_pages: [rooms, overview, climate, lights, maintenance, systems, server]
 ```
 
 
