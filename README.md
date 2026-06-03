@@ -137,16 +137,17 @@ Die Temperatur-Gauge kann mit `label_mode: temperature_comfort` automatisch bewe
 
 | Temperatur | Label |
 | --- | --- |
-| unter 17 °C | `zu kalt` |
-| 17 bis unter 19 °C | `kühl` |
-| 19 bis unter 23 °C | `angenehm` |
-| 23 bis unter 26 °C | `warm` |
-| ab 26 °C | `heiß` |
+| unter 15 °C | `kalt` |
+| 15 bis unter 20 °C | `kühl` |
+| 20 bis unter 22 °C | `angenehm` |
+| 22 bis unter 25 °C | `warm` |
+| ab 25 °C | `heiß` |
 
-Die Heizungs-Gauge zeigt nicht die aktuelle Raumtemperatur, sondern die Zieltemperatur des Climate-Entitys. Dafür nutzt sie `value_attribute: temperature`. Die Tasten `-` und `+` ändern die Zieltemperatur in 0,5-°C-Schritten; `AN` und `AUS` setzen den Heizmodus.
+Die Heizungs-Gauge zeigt nicht die aktuelle Raumtemperatur, sondern die Zieltemperatur des Climate-Entitys. Dafür nutzt sie `value_attribute: temperature`. Wenn die Heizung ausgeschaltet ist, zeigt die Gauge `AUS` statt `0 °C`. Die Controls sind als `-`, dynamischer `AN`/`AUS`-Button und `+` angeordnet.
 
 ```yaml
 - name: HEIZUNG
+  icon: mdi:radiator
   entity: climate.{prefix}
   value_attribute: temperature
   unit: °C
@@ -158,21 +159,42 @@ Die Heizungs-Gauge zeigt nicht die aktuelle Raumtemperatur, sondern die Zieltemp
         action: climate-temperature-step
         entity: climate.{prefix}
         step: -0.5
+    - label_mode: climate_power
+      tap_action:
+        action: climate-toggle-heat
+        entity: climate.{prefix}
     - label: '+'
       tap_action:
         action: climate-temperature-step
         entity: climate.{prefix}
         step: 0.5
-    - label: AN
+```
+
+Licht-Gauges zeigen bei ausgeschaltetem Licht ebenfalls `AUS`. Die Helligkeitsbuttons nutzen `light-brightness-step` und der mittlere Button wechselt dynamisch zwischen `AN` und `AUS`:
+
+```yaml
+- name: LICHT
+  icon: mdi:lightbulb-group
+  entity: light.{prefix}_all
+  value_entity: sensor.{prefix}_light_level
+  unit: '%'
+  max: 100
+  color: '#2c9cff'
+  controls:
+    - label: '-'
       tap_action:
-        action: climate-hvac-mode
-        entity: climate.{prefix}
-        hvac_mode: heat
-    - label: AUS
+        action: light-brightness-step
+        entity: light.{prefix}_all
+        step: -20
+    - label_mode: power
       tap_action:
-        action: climate-hvac-mode
-        entity: climate.{prefix}
-        hvac_mode: 'off'
+        action: toggle
+        entity: light.{prefix}_all
+    - label: '+'
+      tap_action:
+        action: light-brightness-step
+        entity: light.{prefix}_all
+        step: 20
 ```
 
 ## Funktionen und Aktionen

@@ -90,15 +90,17 @@ views:
               entity: sensor.starman_speed
         gauges:
           - name: TEMP
+            icon: mdi:thermometer
             entity: sensor.living_room_temperature
             unit: °C
             max: 30
             color: '#aeb5e9'
-            label: Angenehm
+            label_mode: temperature_comfort
             tap_action:
               action: more-info
               entity: sensor.living_room_temperature
           - name: FEUCHTE
+            icon: mdi:water-percent
             entity: sensor.living_room_humidity
             unit: '%'
             max: 100
@@ -108,42 +110,102 @@ views:
               action: more-info
               entity: sensor.living_room_humidity
           - name: HEIZUNG
+            icon: mdi:radiator
             entity: climate.living_room
             value_entity: sensor.living_room_target_temperature
             unit: °C
             max: 30
             color: '#2c9cff'
-            controls: ['-', '+']
+            controls:
+              - label: '-'
+                tap_action:
+                  action: climate-temperature-step
+                  entity: climate.living_room
+                  step: -0.5
+              - label_mode: climate_power
+                tap_action:
+                  action: climate-toggle-heat
+                  entity: climate.living_room
+              - label: '+'
+                tap_action:
+                  action: climate-temperature-step
+                  entity: climate.living_room
+                  step: 0.5
             tap_action:
               action: more-info
               entity: climate.living_room
           - name: ALLE LICHTER
+            icon: mdi:lightbulb-group
             entity: light.living_room_all
             value_entity: sensor.living_room_light_level
             unit: '%'
             max: 100
             color: '#2c9cff'
-            controls: ['OFF', 'DIM']
+            controls:
+              - label: '-'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.living_room_all
+                  step: -20
+              - label_mode: power
+                tap_action:
+                  action: toggle
+                  entity: light.living_room_all
+              - label: '+'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.living_room_all
+                  step: 20
             tap_action:
               action: toggle
               entity: light.living_room_all
           - name: STEHLAMPE
+            icon: mdi:floor-lamp
             entity: light.floor_lamp
             value_entity: sensor.floor_lamp_brightness
             unit: '%'
             max: 100
             color: '#2c9cff'
-            controls: ['OFF', 'DIM']
+            controls:
+              - label: '-'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.floor_lamp
+                  step: -20
+              - label_mode: power
+                tap_action:
+                  action: toggle
+                  entity: light.floor_lamp
+              - label: '+'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.floor_lamp
+                  step: 20
             tap_action:
               action: toggle
               entity: light.floor_lamp
           - name: DECKENSPOTS
+            icon: mdi:ceiling-light-multiple
             entity: light.ceiling_spots
             value_entity: sensor.ceiling_spots_brightness
             unit: '%'
             max: 100
             color: '#2c9cff'
-            controls: ['ON', '']
+            controls:
+              - label: '-'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.ceiling_spots
+                  step: -20
+              - label_mode: power
+                tap_action:
+                  action: toggle
+                  entity: light.ceiling_spots
+              - label: '+'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.ceiling_spots
+                  step: 20
             tap_action:
               action: toggle
               entity: light.ceiling_spots

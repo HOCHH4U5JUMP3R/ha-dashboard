@@ -217,13 +217,29 @@ views:
           grid-area: right
         columns: 2
         square: false
+        card_mod:
+          style: |
+            :host {
+              padding-right: 56px;
+              box-sizing: border-box;
+            }
         cards:
           - type: custom:button-card
             template: neo_gauge
             entity: sensor.living_room_temperature
             name: TEMP
-            label: Comfortable
+            label: |
+              [[[
+                const raw = Number(entity?.state ?? 0);
+                const value = Number.isFinite(raw) ? raw : 0;
+                if (value < 15) return 'kalt';
+                if (value < 20) return 'kühl';
+                if (value < 22) return 'angenehm';
+                if (value < 25) return 'warm';
+                return 'heiß';
+              ]]]
             variables:
+              icon: mdi:thermometer
               unit: °C
               max: 30
               color: '#aeb5e9'
@@ -233,6 +249,7 @@ views:
             name: HUMIDITY
             label: Dry
             variables:
+              icon: mdi:water-percent
               unit: '%'
               max: 100
               color: '#f29a37'
@@ -241,45 +258,53 @@ views:
             entity: climate.living_room
             name: HEATING
             variables:
+              icon: mdi:radiator
               value_entity: sensor.living_room_target_temperature
               unit: °C
               max: 30
               color: '#2c9cff'
               left_label: '-'
+              center_mode: power
               right_label: +
           - type: custom:button-card
             template: neo_gauge_controls
             entity: light.living_room_all
             name: ALL LIGHTS
             variables:
+              icon: mdi:lightbulb-group
               value_entity: sensor.living_room_light_level
               unit: '%'
               max: 100
               color: '#2c9cff'
-              left_label: 'OFF'
-              right_label: DIM
+              left_label: '-'
+              center_mode: power
+              right_label: +
           - type: custom:button-card
             template: neo_gauge_controls
             entity: light.floor_lamp
             name: FLOOR LAMP
             variables:
+              icon: mdi:floor-lamp
               value_entity: sensor.floor_lamp_brightness
               unit: '%'
               max: 100
               color: '#2c9cff'
-              left_label: 'OFF'
-              right_label: DIM
+              left_label: '-'
+              center_mode: power
+              right_label: +
           - type: custom:button-card
             template: neo_gauge_controls
             entity: light.ceiling_spots
             name: CEILING SPOTS
             variables:
+              icon: mdi:ceiling-light-multiple
               value_entity: sensor.ceiling_spots_brightness
               unit: '%'
               max: 100
               color: '#2c9cff'
-              left_label: 'ON'
-              right_label: ''
+              left_label: '-'
+              center_mode: power
+              right_label: +
 
       - type: custom:mushroom-chips-card
         view_layout:
@@ -405,7 +430,7 @@ button_card_templates:
           const deg = Math.max(0, Math.min(300, (value / max) * 300));
           const formatted = value.toLocaleString('de-DE', { maximumFractionDigits: 1 });
           return `<div class="neo-ring" style="--deg:${deg}deg;--ring:${variables.color}">
-            <div class="neo-gauge-name">${name}</div>
+            <div class="neo-gauge-name"><ha-icon icon="${variables.icon || 'mdi:gauge'}"></ha-icon></div>
             <div class="neo-gauge-value">${formatted}</div>
             <div class="neo-gauge-unit">${variables.unit}</div>
           </div>`;
@@ -418,8 +443,10 @@ button_card_templates:
       }
       .neo-ring:after { content: ''; position: absolute; inset: 7px; border-radius: 50%; background: #111530; box-shadow: inset 0 0 24px rgba(0,0,0,.35); }
       .neo-gauge-name, .neo-gauge-value, .neo-gauge-unit { position: relative; z-index: 1; text-align: center; }
-      .neo-gauge-name { align-self: end; color: var(--neo-muted); font-size: 9px; font-weight: 700; }
+      .neo-gauge-name { align-self: end; color: var(--neo-muted); }
+      .neo-gauge-name ha-icon { width: 18px; height: 18px; }
       .neo-gauge-value { font-size: 26px; color: var(--neo-text); line-height: 1; }
+      .neo-gauge-value.is-off { font-size: 20px; letter-spacing: .04em; }
       .neo-gauge-unit { align-self: start; color: var(--neo-text); font-size: 16px; font-weight: 700; }
   neo_gauge_controls:
     template: neo_gauge
@@ -429,14 +456,17 @@ button_card_templates:
           const stateObj = states[variables.value_entity] ?? entity;
           const raw = Number(stateObj?.state ?? 0);
           const max = Number(variables.max ?? 100);
-          const value = Number.isFinite(raw) ? raw : 0;
+          const isOff = entity?.state === 'off';
+          const value = Number.isFinite(raw) && !isOff ? raw : 0;
           const deg = Math.max(0, Math.min(300, (value / max) * 300));
-          const formatted = value.toLocaleString('de-DE', { maximumFractionDigits: 1 });
+          const formatted = isOff ? 'AUS' : value.toLocaleString('de-DE', { maximumFractionDigits: 1 });
+          const unit = isOff ? '' : variables.unit;
+          const center = variables.center_mode === 'power' ? (isOff ? 'AN' : 'AUS') : (variables.center_label || '');
           return `<div class="neo-ring" style="--deg:${deg}deg;--ring:${variables.color}">
-            <div class="neo-gauge-name">${name}</div>
-            <div class="neo-gauge-value">${formatted}</div>
-            <div class="neo-gauge-unit">${variables.unit}</div>
-          </div><div class="neo-controls"><span>${variables.left_label}</span><span>${variables.right_label}</span></div>`;
+            <div class="neo-gauge-name"><ha-icon icon="${variables.icon || 'mdi:gauge'}"></ha-icon></div>
+            <div class="neo-gauge-value ${isOff ? 'is-off' : ''}">${formatted}</div>
+            <div class="neo-gauge-unit">${unit}</div>
+          </div><div class="neo-controls"><button>${variables.left_label}</button><button>${center}</button><button>${variables.right_label}</button></div>`;
         ]]]
     extra_styles: |
       .neo-ring {
@@ -446,7 +476,10 @@ button_card_templates:
       }
       .neo-ring:after { content: ''; position: absolute; inset: 7px; border-radius: 50%; background: #111530; box-shadow: inset 0 0 24px rgba(0,0,0,.35); }
       .neo-gauge-name, .neo-gauge-value, .neo-gauge-unit { position: relative; z-index: 1; text-align: center; }
-      .neo-gauge-name { align-self: end; color: var(--neo-muted); font-size: 9px; font-weight: 700; }
+      .neo-gauge-name { align-self: end; color: var(--neo-muted); }
+      .neo-gauge-name ha-icon { width: 18px; height: 18px; }
       .neo-gauge-value { font-size: 26px; color: var(--neo-text); line-height: 1; }
+      .neo-gauge-value.is-off { font-size: 20px; letter-spacing: .04em; }
       .neo-gauge-unit { align-self: start; color: var(--neo-text); font-size: 16px; font-weight: 700; }
-      .neo-controls { display: flex; justify-content: space-between; width: 86%; margin: 4px auto 0; color: var(--neo-text); font-size: 12px; font-weight: 800; }
+      .neo-controls { display: grid; grid-template-columns: repeat(3, minmax(32px, 1fr)); gap: 6px; width: 88%; margin: 4px auto 0; color: var(--neo-text); font-size: 12px; font-weight: 800; }
+      .neo-controls button { min-height: 24px; border: 0; border-radius: 999px; background: rgba(44,156,255,.18); color: var(--neo-text); font: inherit; font-size: 11px; }

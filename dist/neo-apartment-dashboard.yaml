@@ -162,6 +162,7 @@ views:
               entity: sensor.starman_speed
         gauges:
           - name: TEMP
+            icon: mdi:thermometer
             entity: sensor.{prefix}_temperature
             unit: °C
             max: 30
@@ -171,6 +172,7 @@ views:
               action: more-info
               entity: sensor.{prefix}_temperature
           - name: FEUCHTE
+            icon: mdi:water-percent
             entity: sensor.{prefix}_humidity
             unit: '%'
             max: 100
@@ -180,6 +182,7 @@ views:
               action: more-info
               entity: sensor.{prefix}_humidity
           - name: HEIZUNG
+            icon: mdi:radiator
             entity: climate.{prefix}
             value_attribute: temperature
             unit: °C
@@ -191,51 +194,90 @@ views:
                   action: climate-temperature-step
                   entity: climate.{prefix}
                   step: -0.5
+              - label_mode: climate_power
+                tap_action:
+                  action: climate-toggle-heat
+                  entity: climate.{prefix}
               - label: '+'
                 tap_action:
                   action: climate-temperature-step
                   entity: climate.{prefix}
                   step: 0.5
-              - label: AN
-                tap_action:
-                  action: climate-hvac-mode
-                  entity: climate.{prefix}
-                  hvac_mode: heat
-              - label: AUS
-                tap_action:
-                  action: climate-hvac-mode
-                  entity: climate.{prefix}
-                  hvac_mode: 'off'
             tap_action:
               action: more-info
               entity: climate.{prefix}
           - name: ALLE LICHTER
+            icon: mdi:lightbulb-group
             entity: light.{prefix}_all
             value_entity: sensor.{prefix}_light_level
             unit: '%'
             max: 100
             color: '#2c9cff'
-            controls: ['OFF', 'DIM']
+            controls:
+              - label: '-'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.{prefix}_all
+                  step: -20
+              - label_mode: power
+                tap_action:
+                  action: toggle
+                  entity: light.{prefix}_all
+              - label: '+'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.{prefix}_all
+                  step: 20
             tap_action:
               action: toggle
               entity: light.{prefix}_all
           - name: STEHLAMPE
+            icon: mdi:floor-lamp
             entity: light.{prefix}_main
             value_entity: sensor.{prefix}_main_light_level
             unit: '%'
             max: 100
             color: '#2c9cff'
-            controls: ['OFF', 'DIM']
+            controls:
+              - label: '-'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.{prefix}_main
+                  step: -20
+              - label_mode: power
+                tap_action:
+                  action: toggle
+                  entity: light.{prefix}_main
+              - label: '+'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.{prefix}_main
+                  step: 20
             tap_action:
               action: toggle
               entity: light.{prefix}_main
           - name: DECKENSPOTS
+            icon: mdi:ceiling-light-multiple
             entity: light.{prefix}_ceiling
             value_entity: sensor.{prefix}_ceiling_light_level
             unit: '%'
             max: 100
             color: '#2c9cff'
-            controls: ['ON', '']
+            controls:
+              - label: '-'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.{prefix}_ceiling
+                  step: -20
+              - label_mode: power
+                tap_action:
+                  action: toggle
+                  entity: light.{prefix}_ceiling
+              - label: '+'
+                tap_action:
+                  action: light-brightness-step
+                  entity: light.{prefix}_ceiling
+                  step: 20
             tap_action:
               action: toggle
               entity: light.{prefix}_ceiling
