@@ -130,9 +130,54 @@ tiles:
       entity: light.{prefix}_all
 ```
 
+
+## Temperatur- und Heizungslogik
+
+Die Temperatur-Gauge kann mit `label_mode: temperature_comfort` automatisch bewertet werden:
+
+| Temperatur | Label |
+| --- | --- |
+| unter 17 °C | `zu kalt` |
+| 17 bis unter 19 °C | `kühl` |
+| 19 bis unter 23 °C | `angenehm` |
+| 23 bis unter 26 °C | `warm` |
+| ab 26 °C | `heiß` |
+
+Die Heizungs-Gauge zeigt nicht die aktuelle Raumtemperatur, sondern die Zieltemperatur des Climate-Entitys. Dafür nutzt sie `value_attribute: temperature`. Die Tasten `-` und `+` ändern die Zieltemperatur in 0,5-°C-Schritten; `AN` und `AUS` setzen den Heizmodus.
+
+```yaml
+- name: HEIZUNG
+  entity: climate.{prefix}
+  value_attribute: temperature
+  unit: °C
+  max: 30
+  color: '#2c9cff'
+  controls:
+    - label: '-'
+      tap_action:
+        action: climate-temperature-step
+        entity: climate.{prefix}
+        step: -0.5
+    - label: '+'
+      tap_action:
+        action: climate-temperature-step
+        entity: climate.{prefix}
+        step: 0.5
+    - label: AN
+      tap_action:
+        action: climate-hvac-mode
+        entity: climate.{prefix}
+        hvac_mode: heat
+    - label: AUS
+      tap_action:
+        action: climate-hvac-mode
+        entity: climate.{prefix}
+        hvac_mode: 'off'
+```
+
 ## Funktionen und Aktionen
 
-Jede Systemzeile, Metrik, Gauge, Kachel und jeder optionale Reiter kann eine `tap_action` erhalten. Unterstützt werden:
+Jede Systemzeile, Metrik, Gauge, Kachel und jeder optionale Reiter kann eine `tap_action` erhalten. Unterstützt werden außerdem:
 
 ```yaml
 tap_action:

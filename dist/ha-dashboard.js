@@ -215,22 +215,55 @@ class HaNeoDashboard extends HTMLElement {
 
   renderGauge(gauge) {
     const resolvedGauge = resolveRoomValue(gauge, this.activeRoom);
-    const value = this.stateNumber(resolvedGauge.value_entity || resolvedGauge.entity);
+    const value = this.gaugeValue(resolvedGauge);
     const max = Number(resolvedGauge.max ?? 100);
     const degrees = max > 0 ? Math.max(0, Math.min(300, (value / max) * 300)) : 0;
-    const label = resolvedGauge.label_entity ? stateLabel(this._hass, { entity: resolvedGauge.label_entity }) : resolvedGauge.label;
+    const label = this.gaugeLabel(resolvedGauge, value);
 
     return `
-      <button class="gauge-card" type="button" data-action='${jsonAttr(actionFor(resolvedGauge))}'>
+      <div class="gauge-card" role="button" tabindex="0" data-action='${jsonAttr(actionFor(resolvedGauge))}'>
         <span class="gauge-ring" style="--gauge-color:${escapeAttr(resolvedGauge.color || '#2c9cff')};--gauge-deg:${degrees}deg">
           <span class="gauge-name">${escapeHtml(resolvedGauge.name)}</span>
           <span class="gauge-value">${this.formatNumber(value)}</span>
           <span class="gauge-unit">${escapeHtml(resolvedGauge.unit || this.stateUnit(resolvedGauge.value_entity || resolvedGauge.entity) || '')}</span>
         </span>
         ${label ? `<span class="gauge-label ${resolvedGauge.color === '#f29a37' ? 'orange-text' : ''}">${escapeHtml(label)}</span>` : ''}
-        ${resolvedGauge.controls ? `<span class="gauge-controls"><b>${escapeHtml(resolvedGauge.controls[0] || '')}</b><b>${escapeHtml(resolvedGauge.controls[1] || '')}</b></span>` : ''}
-      </button>
+        ${resolvedGauge.controls ? this.renderGaugeControls(resolvedGauge.controls) : ''}
+      </div>
     `;
+  }
+
+  renderGaugeControls(controls) {
+    return `
+      <span class="gauge-controls">
+        ${controls.map((control) => {
+          if (typeof control === 'string') {
+            return `<b>${escapeHtml(control)}</b>`;
+          }
+
+          return `<button class="gauge-control" type="button" data-action='${jsonAttr(control.tap_action)}'>${escapeHtml(control.label)}</button>`;
+        }).join('')}
+      </span>
+    `;
+  }
+
+  gaugeValue(gauge) {
+    if (gauge.value_attribute && gauge.entity) {
+      const value = Number(this._hass.states[gauge.entity]?.attributes?.[gauge.value_attribute]);
+      if (Number.isFinite(value)) {
+        return value;
+      }
+    }
+
+    return this.stateNumber(gauge.value_entity || gauge.entity);
+  }
+
+  gaugeLabel(gauge, value) {
+    if (gauge.label_mode === 'temperature_comfort') {
+      return temperatureComfortLabel(value);
+    }
+
+    return gauge.label_entity ? stateLabel(this._hass, { entity: gauge.label_entity }) : gauge.label;
   }
 
   renderNavigation() {
@@ -299,6 +332,20 @@ class HaNeoDashboard extends HTMLElement {
 
     if (action.action === 'toggle' && action.entity) {
       this._hass.callService('homeassistant', 'toggle', { entity_id: action.entity });
+      return;
+    }
+
+    if (action.action === 'climate-temperature-step' && action.entity) {
+      const currentTarget = Number(this._hass.states[action.entity]?.attributes?.temperature);
+      const fallback = Number(this._hass.states[action.entity]?.attributes?.current_temperature);
+      const base = Number.isFinite(currentTarget) ? currentTarget : Number.isFinite(fallback) ? fallback : 20;
+      const temperature = Math.round((base + Number(action.step || 0)) * 2) / 2;
+      this._hass.callService('climate', 'set_temperature', { entity_id: action.entity, temperature });
+      return;
+    }
+
+    if (action.action === 'climate-hvac-mode' && action.entity && action.hvac_mode) {
+      this._hass.callService('climate', 'set_hvac_mode', { entity_id: action.entity, hvac_mode: action.hvac_mode });
       return;
     }
 
@@ -447,7 +494,8 @@ class HaNeoDashboard extends HTMLElement {
       .gauge-value { font-size: 26px; line-height: 1; }
       .gauge-unit { align-self: start; font-size: 16px; font-weight: 700; }
       .gauge-label { color: var(--neo-muted); font-size: 11px; }
-      .gauge-controls { display: flex; justify-content: space-between; width: 86%; font-size: 12px; font-weight: 800; }
+      .gauge-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; width: 92%; font-size: 12px; font-weight: 800; }
+      .gauge-control { min-width: 34px; min-height: 24px; padding: 0 8px; border-radius: 999px; background: rgba(44, 156, 255, .18); color: var(--neo-text); font-size: 11px; font-weight: 800; }
       .bottom-nav { grid-area: nav; align-self: end; justify-self: center; display: flex; gap: 8px; width: min(720px, 100%); padding: 7px 12px; border-radius: 28px 28px 0 0; background: linear-gradient(180deg, rgba(27, 31, 78, .92), rgba(11, 14, 39, .96)); box-shadow: 0 -8px 32px rgba(30, 66, 210, .25); }
       .nav-item { position: relative; display: grid; gap: 3px; justify-items: center; flex: 1 1 0; min-width: 54px; padding: 6px 4px; background: transparent; color: var(--neo-muted); font-size: 10px; }
       .nav-item ha-icon { color: currentColor; width: 22px; height: 22px; }
@@ -614,9 +662,9 @@ const DEFAULT_CONFIG = {
     { name: 'Starman', entity: 'sensor.starman_speed', max: 5000, unit: 'km/h', tap_action: { action: 'more-info', entity: 'sensor.starman_speed' } },
   ],
   gauges: [
-    { name: 'TEMP', entity: 'sensor.living_room_temperature', unit: '°C', max: 30, color: '#aeb5e9', label: 'Angenehm', tap_action: { action: 'more-info', entity: 'sensor.living_room_temperature' } },
+    { name: 'TEMP', entity: 'sensor.living_room_temperature', unit: '°C', max: 30, color: '#aeb5e9', label_mode: 'temperature_comfort', tap_action: { action: 'more-info', entity: 'sensor.living_room_temperature' } },
     { name: 'FEUCHTE', entity: 'sensor.living_room_humidity', unit: '%', max: 100, color: '#f29a37', label: 'Trocken', tap_action: { action: 'more-info', entity: 'sensor.living_room_humidity' } },
-    { name: 'HEIZUNG', entity: 'climate.living_room', value_entity: 'sensor.living_room_target_temperature', unit: '°C', max: 30, color: '#2c9cff', controls: ['-', '+'], tap_action: { action: 'more-info', entity: 'climate.living_room' } },
+    { name: 'HEIZUNG', entity: 'climate.living_room', value_attribute: 'temperature', unit: '°C', max: 30, color: '#2c9cff', controls: heatingControls('climate.living_room'), tap_action: { action: 'more-info', entity: 'climate.living_room' } },
     { name: 'ALLE LICHTER', entity: 'light.living_room_all', value_entity: 'sensor.living_room_light_level', unit: '%', max: 100, color: '#2c9cff', controls: ['OFF', 'DIM'], tap_action: { action: 'toggle', entity: 'light.living_room_all' } },
     { name: 'STEHLAMPE', entity: 'light.floor_lamp', value_entity: 'sensor.floor_lamp_brightness', unit: '%', max: 100, color: '#2c9cff', controls: ['OFF', 'DIM'], tap_action: { action: 'toggle', entity: 'light.floor_lamp' } },
     { name: 'DECKENSPOTS', entity: 'light.ceiling_spots', value_entity: 'sensor.ceiling_spots_brightness', unit: '%', max: 100, color: '#2c9cff', controls: ['ON', ''], tap_action: { action: 'toggle', entity: 'light.ceiling_spots' } },
@@ -632,6 +680,36 @@ const DEFAULT_CONFIG = {
 };
 
 
+
+
+function temperatureComfortLabel(value) {
+  if (value < 17) {
+    return 'zu kalt';
+  }
+
+  if (value < 19) {
+    return 'kühl';
+  }
+
+  if (value < 23) {
+    return 'angenehm';
+  }
+
+  if (value < 26) {
+    return 'warm';
+  }
+
+  return 'heiß';
+}
+
+function heatingControls(entity) {
+  return [
+    { label: '-', tap_action: { action: 'climate-temperature-step', entity, step: -0.5 } },
+    { label: '+', tap_action: { action: 'climate-temperature-step', entity, step: 0.5 } },
+    { label: 'AN', tap_action: { action: 'climate-hvac-mode', entity, hvac_mode: 'heat' } },
+    { label: 'AUS', tap_action: { action: 'climate-hvac-mode', entity, hvac_mode: 'off' } },
+  ];
+}
 
 function resolveRoomValue(value, room) {
   if (Array.isArray(value)) {
@@ -718,9 +796,9 @@ function buildRoomConfig(config, room) {
 
 function createRoomGauges(room) {
   return [
-    { name: 'TEMP', entity: room.temperature_entity, unit: '°C', max: 30, color: '#aeb5e9', label: room.title, tap_action: { action: 'more-info', entity: room.temperature_entity } },
+    { name: 'TEMP', entity: room.temperature_entity, unit: '°C', max: 30, color: '#aeb5e9', label_mode: 'temperature_comfort', tap_action: { action: 'more-info', entity: room.temperature_entity } },
     { name: 'FEUCHTE', entity: room.humidity_entity, unit: '%', max: 100, color: '#f29a37', label: 'Raumklima', tap_action: { action: 'more-info', entity: room.humidity_entity } },
-    { name: 'HEIZUNG', entity: room.climate_entity, value_entity: room.target_temperature_entity, unit: '°C', max: 30, color: '#2c9cff', controls: ['-', '+'], tap_action: { action: 'more-info', entity: room.climate_entity } },
+    { name: 'HEIZUNG', entity: room.climate_entity, value_attribute: 'temperature', unit: '°C', max: 30, color: '#2c9cff', controls: heatingControls(room.climate_entity), tap_action: { action: 'more-info', entity: room.climate_entity } },
     { name: 'LICHT', entity: room.all_lights_entity, value_entity: room.light_level_entity, unit: '%', max: 100, color: '#2c9cff', controls: ['AUS', 'DIM'], tap_action: { action: 'toggle', entity: room.all_lights_entity } },
     { name: 'HAUPTLICHT', entity: room.main_light_entity, value_entity: room.main_light_level_entity, unit: '%', max: 100, color: '#2c9cff', controls: ['AUS', 'AN'], tap_action: { action: 'toggle', entity: room.main_light_entity } },
     { name: 'BEWEGUNG', entity: room.motion_entity, unit: '', max: 1, color: '#aeb5e9', label_entity: room.motion_entity, tap_action: { action: 'more-info', entity: room.motion_entity } },
