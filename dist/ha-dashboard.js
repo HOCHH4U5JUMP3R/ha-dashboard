@@ -1,8 +1,8 @@
 class HaNeoDashboard extends HTMLElement {
   static getStubConfig() {
     return {
-      title: 'LIVING ROOM',
-      subtitle: 'Ground floor',
+      title: 'WOHNZIMMER',
+      subtitle: 'Erdgeschoss',
       background_image: '',
       image: '/local/neo-dashboard/living-room.png',
       default_page: 'overview',
@@ -56,7 +56,7 @@ class HaNeoDashboard extends HTMLElement {
         <section class="dashboard-shell">
           ${this.renderLeftPanel()}
           <main class="content-panel">
-            ${page?.type === 'overview' ? this.renderOverview() : this.renderPage(page)}
+            ${page?.type === 'overview' ? this.renderÜbersicht() : this.renderPage(page)}
           </main>
           ${this.renderRightPanel(page)}
           ${this.renderNavigation()}
@@ -108,7 +108,7 @@ class HaNeoDashboard extends HTMLElement {
     `;
   }
 
-  renderOverview() {
+  renderÜbersicht() {
     return `
       ${this.renderTitle(this.config.title, this.config.subtitle)}
       <div class="room-image-wrap">
@@ -154,7 +154,7 @@ class HaNeoDashboard extends HTMLElement {
       <button class="feature-tile ${active ? 'active' : ''}" type="button" data-action='${jsonAttr(actionFor(tile))}'>
         <ha-icon icon="${escapeAttr(tile.icon || 'mdi:gesture-tap-button')}"></ha-icon>
         <span class="tile-copy">
-          <strong>${escapeHtml(tile.name || tile.entity || 'Action')}</strong>
+          <strong>${escapeHtml(tile.name || tile.entity || 'Aktion')}</strong>
           <small>${escapeHtml(state)}</small>
         </span>
       </button>
@@ -220,7 +220,7 @@ class HaNeoDashboard extends HTMLElement {
     }
 
     if (target.dataset.page) {
-      const action = parseAction(target.dataset.action);
+      const action = parseAktion(target.dataset.action);
       if (!action.action) {
         this.currentPage = target.dataset.page;
         this.render();
@@ -228,10 +228,10 @@ class HaNeoDashboard extends HTMLElement {
       }
     }
 
-    this.performAction(parseAction(target.dataset.action));
+    this.performAktion(parseAktion(target.dataset.action));
   };
 
-  performAction(action) {
+  performAktion(action) {
     if (!action || action.action === 'none') {
       return;
     }
@@ -314,10 +314,11 @@ class HaNeoDashboard extends HTMLElement {
         --neo-blue: #2c9cff;
         display: block;
         width: 100%;
-        min-height: 100vh;
+        min-height: 100dvh;
       }
       ha-card {
-        min-height: 100vh;
+        height: 100dvh;
+        min-height: 100dvh;
         overflow: hidden;
         color: var(--neo-text);
         background:
@@ -335,14 +336,15 @@ class HaNeoDashboard extends HTMLElement {
       .dashboard-shell {
         box-sizing: border-box;
         display: grid;
-        grid-template-columns: minmax(240px, 300px) minmax(380px, 1fr) minmax(300px, 360px);
+        grid-template-columns: minmax(230px, 280px) minmax(360px, 1fr) minmax(288px, 328px);
         grid-template-rows: 1fr 76px;
         grid-template-areas:
           'left content right'
           'left nav right';
-        gap: 20px;
-        min-height: 100vh;
-        padding: 46px 34px 0;
+        gap: 16px;
+        height: 100dvh;
+        min-height: 100dvh;
+        padding: 34px 28px 0;
         background: rgba(5, 8, 26, .2);
         backdrop-filter: saturate(120%);
       }
@@ -365,7 +367,7 @@ class HaNeoDashboard extends HTMLElement {
       .metric b { color: var(--neo-text); font-size: 14px; font-weight: 500; }
       .metric i { grid-column: 1 / -1; height: 4px; border-radius: 999px; background: rgba(125, 137, 198, .28); overflow: hidden; }
       .metric em { display: block; height: 100%; border-radius: inherit; background: #aeb5e9; }
-      .room-title { width: 190px; margin: 0 auto 58px; border: 1px solid rgba(169, 181, 232, .38); border-radius: 7px; padding: 12px 8px 10px; text-align: center; background: rgba(12, 15, 36, .55); }
+      .room-title { width: 190px; margin: 0 auto 38px; border: 1px solid rgba(169, 181, 232, .38); border-radius: 7px; padding: 12px 8px 10px; text-align: center; background: rgba(12, 15, 36, .55); }
       .room-title h2 { margin: 0; font-size: 22px; font-weight: 500; letter-spacing: .03em; }
       .room-title p { margin: 10px 0 0; color: var(--neo-muted); font-size: 11px; }
       .room-image-wrap { position: relative; width: min(620px, 92%); filter: drop-shadow(0 40px 42px rgba(95, 125, 255, .28)); }
@@ -380,7 +382,7 @@ class HaNeoDashboard extends HTMLElement {
       .feature-tile ha-icon { width: 32px; height: 32px; color: var(--neo-blue); }
       .tile-copy strong { display: block; font-size: 15px; letter-spacing: .02em; }
       .tile-copy small { display: block; margin-top: 6px; color: var(--neo-muted); font-size: 12px; }
-      .gauge-card { min-height: 154px; display: grid; justify-items: center; align-content: center; gap: 6px; padding: 12px 8px; background: rgba(20, 24, 57, .62); border: 1px solid rgba(61, 70, 124, .18); border-radius: 4px; }
+      .gauge-card { min-height: 146px; display: grid; justify-items: center; align-content: center; gap: 6px; padding: 12px 8px; background: rgba(20, 24, 57, .62); border: 1px solid rgba(61, 70, 124, .18); border-radius: 4px; }
       .gauge-ring { position: relative; display: grid; place-items: center; width: 112px; height: 112px; border-radius: 50%; background: conic-gradient(from 210deg, var(--gauge-color) var(--gauge-deg), rgba(255, 255, 255, .06) var(--gauge-deg) 300deg, transparent 300deg 360deg); }
       .gauge-ring:after { content: ''; position: absolute; inset: 7px; border-radius: 50%; background: #111530; box-shadow: inset 0 0 24px rgba(0, 0, 0, .35); }
       .gauge-name, .gauge-value, .gauge-unit { position: relative; z-index: 1; text-align: center; }
@@ -389,14 +391,51 @@ class HaNeoDashboard extends HTMLElement {
       .gauge-unit { align-self: start; font-size: 16px; font-weight: 700; }
       .gauge-label { color: var(--neo-muted); font-size: 11px; }
       .gauge-controls { display: flex; justify-content: space-between; width: 86%; font-size: 12px; font-weight: 800; }
-      .bottom-nav { grid-area: nav; align-self: end; justify-self: center; display: flex; gap: 8px; width: min(720px, 100%); padding: 8px 12px; border-radius: 28px 28px 0 0; background: linear-gradient(180deg, rgba(27, 31, 78, .92), rgba(11, 14, 39, .96)); box-shadow: 0 -8px 32px rgba(30, 66, 210, .25); }
+      .bottom-nav { grid-area: nav; align-self: end; justify-self: center; display: flex; gap: 8px; width: min(720px, 100%); padding: 7px 12px; border-radius: 28px 28px 0 0; background: linear-gradient(180deg, rgba(27, 31, 78, .92), rgba(11, 14, 39, .96)); box-shadow: 0 -8px 32px rgba(30, 66, 210, .25); }
       .nav-item { position: relative; display: grid; gap: 3px; justify-items: center; flex: 1 1 0; min-width: 54px; padding: 6px 4px; background: transparent; color: var(--neo-muted); font-size: 10px; }
       .nav-item ha-icon { color: currentColor; width: 22px; height: 22px; }
       .nav-item.active { color: var(--neo-text); }
       .nav-item.active:after { content: ''; position: absolute; bottom: -5px; width: 46px; height: 3px; border-radius: 999px; background: var(--neo-text); }
+
+      @media (orientation: landscape) and (min-width: 1100px) and (max-height: 860px) {
+        :host {
+          --neo-ipad-air-width: 1180px;
+          --neo-ipad-air-height: 820px;
+        }
+        ha-card {
+          height: 100dvh;
+          max-height: var(--neo-ipad-air-height);
+        }
+        .dashboard-shell {
+          width: min(100vw, var(--neo-ipad-air-width));
+          height: min(100dvh, var(--neo-ipad-air-height));
+          min-height: 0;
+          margin: 0 auto;
+          grid-template-columns: 252px 1fr 312px;
+          grid-template-rows: 1fr 68px;
+          gap: 14px;
+          padding: 30px 26px 0;
+        }
+        .tabs { margin-bottom: 24px; }
+        .systems { gap: 18px; margin-bottom: 32px; }
+        .metrics { gap: 18px; padding-top: 24px; }
+        .room-title { margin-bottom: 30px; }
+        .room-image-wrap { width: min(520px, 92%); }
+        .room-image { min-height: 230px; max-height: 330px; }
+        .quick-chips { margin-top: 24px; padding: 18px 48px; }
+        .right-panel { gap: 10px; }
+        .gauge-card { min-height: 134px; padding: 8px 6px; }
+        .gauge-ring { width: 96px; height: 96px; }
+        .gauge-value { font-size: 23px; }
+        .gauge-unit { font-size: 14px; }
+        .page-grid { width: min(650px, 100%); gap: 14px; }
+        .feature-tile { min-height: 96px; padding: 15px; }
+        .bottom-nav { width: min(640px, 100%); padding: 6px 10px; }
+        .nav-item { padding: 5px 3px; font-size: 9px; }
+      }
       @media (max-width: 1000px) {
-        ha-card { min-height: 100vh; }
-        .dashboard-shell { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'content' 'right' 'left' 'nav'; padding: 24px 16px 0; min-height: 100vh; }
+        ha-card { min-height: 100dvh; height: auto; }
+        .dashboard-shell { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'content' 'right' 'left' 'nav'; padding: 24px 16px 0; min-height: 100dvh; }
         .right-panel { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
         .page-grid { grid-template-columns: 1fr; }
         .room-title { margin-bottom: 28px; }
@@ -407,106 +446,106 @@ class HaNeoDashboard extends HTMLElement {
 }
 
 const DEFAULT_PAGES = [
-  { id: 'overview', label: 'Overview', title: 'LIVING ROOM', subtitle: 'Ground floor', icon: 'mdi:rocket-launch', type: 'overview' },
+  { id: 'overview', label: 'Übersicht', title: 'WOHNZIMMER', subtitle: 'Erdgeschoss', icon: 'mdi:rocket-launch', type: 'overview' },
   {
-    id: 'climate', label: 'Climate', title: 'CLIMATE', subtitle: 'Heating and air', icon: 'mdi:heat-wave',
+    id: 'climate', label: 'Klima', title: 'KLIMA', subtitle: 'Heizung und Luft', icon: 'mdi:heat-wave',
     tiles: [
-      { name: 'Heating', entity: 'climate.living_room', icon: 'mdi:radiator', tap_action: { action: 'more-info', entity: 'climate.living_room' } },
-      { name: 'Boost heat', icon: 'mdi:fire', label: 'Set 22 °C', tap_action: { action: 'call-service', service: 'climate.set_temperature', target: { entity_id: 'climate.living_room' }, data: { temperature: 22 } } },
-      { name: 'Comfort scene', icon: 'mdi:home-thermometer', label: 'Run scene', tap_action: { action: 'call-service', service: 'scene.turn_on', target: { entity_id: 'scene.living_room_comfort' } } },
-      { name: 'Thermostat details', entity: 'sensor.living_room_temperature', icon: 'mdi:thermometer', tap_action: { action: 'more-info', entity: 'sensor.living_room_temperature' } },
+      { name: 'Heizung', entity: 'climate.living_room', icon: 'mdi:radiator', tap_action: { action: 'more-info', entity: 'climate.living_room' } },
+      { name: 'Heizung Boost', icon: 'mdi:fire', label: '22 °C setzen', tap_action: { action: 'call-service', service: 'climate.set_temperature', target: { entity_id: 'climate.living_room' }, data: { temperature: 22 } } },
+      { name: 'Komfortszene', icon: 'mdi:home-thermometer', label: 'Szene starten', tap_action: { action: 'call-service', service: 'scene.turn_on', target: { entity_id: 'scene.living_room_comfort' } } },
+      { name: 'Thermostatdetails', entity: 'sensor.living_room_temperature', icon: 'mdi:thermometer', tap_action: { action: 'more-info', entity: 'sensor.living_room_temperature' } },
     ],
   },
   {
-    id: 'lights', label: 'Lights', title: 'LIGHTS', subtitle: 'Room ambience', icon: 'mdi:lightbulb-on-outline',
+    id: 'lights', label: 'Lichter', title: 'LICHTER', subtitle: 'Raumstimmung', icon: 'mdi:lightbulb-on-outline',
     tiles: [
-      { name: 'All lights', entity: 'light.living_room_all', icon: 'mdi:lightbulb-group', tap_action: { action: 'toggle', entity: 'light.living_room_all' } },
-      { name: 'Floor lamp', entity: 'light.floor_lamp', icon: 'mdi:floor-lamp', tap_action: { action: 'toggle', entity: 'light.floor_lamp' } },
-      { name: 'Ceiling spots', entity: 'light.ceiling_spots', icon: 'mdi:ceiling-light-multiple', tap_action: { action: 'toggle', entity: 'light.ceiling_spots' } },
-      { name: 'Movie light', icon: 'mdi:movie-open', label: 'Run scene', tap_action: { action: 'call-service', service: 'scene.turn_on', target: { entity_id: 'scene.living_room_movie' } } },
+      { name: 'Alle Lichter', entity: 'light.living_room_all', icon: 'mdi:lightbulb-group', tap_action: { action: 'toggle', entity: 'light.living_room_all' } },
+      { name: 'Stehlampe', entity: 'light.floor_lamp', icon: 'mdi:floor-lamp', tap_action: { action: 'toggle', entity: 'light.floor_lamp' } },
+      { name: 'Deckenspots', entity: 'light.ceiling_spots', icon: 'mdi:ceiling-light-multiple', tap_action: { action: 'toggle', entity: 'light.ceiling_spots' } },
+      { name: 'Kinolicht', icon: 'mdi:movie-open', label: 'Szene starten', tap_action: { action: 'call-service', service: 'scene.turn_on', target: { entity_id: 'scene.living_room_movie' } } },
     ],
   },
   {
-    id: 'security', label: 'Security', title: 'SECURITY', subtitle: 'Protection and cameras', icon: 'mdi:shield-home-outline',
+    id: 'security', label: 'Sicherheit', title: 'SICHERHEIT', subtitle: 'Schutz und Kameras', icon: 'mdi:shield-home-outline',
     tiles: [
       { name: 'Alarm', entity: 'alarm_control_panel.home_alarm', icon: 'mdi:shield-lock', tap_action: { action: 'more-info', entity: 'alarm_control_panel.home_alarm' } },
-      { name: 'Front camera', entity: 'camera.front_door', icon: 'mdi:cctv', tap_action: { action: 'more-info', entity: 'camera.front_door' } },
-      { name: 'Lock front door', entity: 'lock.front_door', icon: 'mdi:lock', tap_action: { action: 'call-service', service: 'lock.lock', target: { entity_id: 'lock.front_door' } } },
-      { name: 'Open cameras', icon: 'mdi:video-box', label: 'Navigate', tap_action: { action: 'navigate', navigation_path: '/lovelace/security' } },
+      { name: 'Kamera Eingang', entity: 'camera.front_door', icon: 'mdi:cctv', tap_action: { action: 'more-info', entity: 'camera.front_door' } },
+      { name: 'Haustür verriegeln', entity: 'lock.front_door', icon: 'mdi:lock', tap_action: { action: 'call-service', service: 'lock.lock', target: { entity_id: 'lock.front_door' } } },
+      { name: 'Kameras öffnen', icon: 'mdi:video-box', label: 'Navigation', tap_action: { action: 'navigate', navigation_path: '/lovelace/security' } },
     ],
   },
   {
-    id: 'media', label: 'Media', title: 'MEDIA', subtitle: 'Music and TV', icon: 'mdi:play-box-outline',
+    id: 'media', label: 'Medien', title: 'MEDIEN', subtitle: 'Musik und TV', icon: 'mdi:play-box-outline',
     tiles: [
       { name: 'TV', entity: 'media_player.living_room_tv', icon: 'mdi:television', tap_action: { action: 'toggle', entity: 'media_player.living_room_tv' } },
-      { name: 'Speaker', entity: 'media_player.living_room_speaker', icon: 'mdi:speaker', tap_action: { action: 'more-info', entity: 'media_player.living_room_speaker' } },
-      { name: 'Play/Pause', icon: 'mdi:play-pause', label: 'Speaker', tap_action: { action: 'call-service', service: 'media_player.media_play_pause', target: { entity_id: 'media_player.living_room_speaker' } } },
-      { name: 'Movie scene', icon: 'mdi:movie', label: 'Lights + media', tap_action: { action: 'call-service', service: 'scene.turn_on', target: { entity_id: 'scene.living_room_movie' } } },
+      { name: 'Lautsprecher', entity: 'media_player.living_room_speaker', icon: 'mdi:speaker', tap_action: { action: 'more-info', entity: 'media_player.living_room_speaker' } },
+      { name: 'Play/Pause', icon: 'mdi:play-pause', label: 'Lautsprecher', tap_action: { action: 'call-service', service: 'media_player.media_play_pause', target: { entity_id: 'media_player.living_room_speaker' } } },
+      { name: 'Kinoszene', icon: 'mdi:movie', label: 'Lichter + Medien', tap_action: { action: 'call-service', service: 'scene.turn_on', target: { entity_id: 'scene.living_room_movie' } } },
     ],
   },
   {
-    id: 'maintenance', label: 'Maintenance', title: 'MAINTENANCE', subtitle: 'Systems health', icon: 'mdi:router-wireless-settings',
+    id: 'maintenance', label: 'Wartung', title: 'WARTUNG', subtitle: 'Systemzustand', icon: 'mdi:router-wireless-settings',
     tiles: [
       { name: 'Backups', entity: 'sensor.backup_state', icon: 'mdi:cloud-upload', tap_action: { action: 'more-info', entity: 'sensor.backup_state' } },
       { name: 'CPU', entity: 'sensor.centauri_cpu', icon: 'mdi:cpu-64-bit', tap_action: { action: 'more-info', entity: 'sensor.centauri_cpu' } },
-      { name: 'Storage', entity: 'sensor.ganymede_storage', icon: 'mdi:harddisk', tap_action: { action: 'more-info', entity: 'sensor.ganymede_storage' } },
-      { name: 'Restart HA', icon: 'mdi:restart', label: 'Service call', tap_action: { action: 'call-service', service: 'homeassistant.restart' } },
+      { name: 'Speicher', entity: 'sensor.ganymede_storage', icon: 'mdi:harddisk', tap_action: { action: 'more-info', entity: 'sensor.ganymede_storage' } },
+      { name: 'HA neu starten', icon: 'mdi:restart', label: 'Dienstaufruf', tap_action: { action: 'call-service', service: 'homeassistant.restart' } },
     ],
   },
   {
-    id: 'presence', label: 'Presence', title: 'PRESENCE', subtitle: 'People and automations', icon: 'mdi:map-marker-radius-outline',
+    id: 'presence', label: 'Anwesenheit', title: 'ANWESENHEIT', subtitle: 'Personen und Automationen', icon: 'mdi:map-marker-radius-outline',
     tiles: [
       { name: 'Person 1', entity: 'person.person_1', icon: 'mdi:account', tap_action: { action: 'more-info', entity: 'person.person_1' } },
       { name: 'Person 2', entity: 'person.person_2', icon: 'mdi:account-outline', tap_action: { action: 'more-info', entity: 'person.person_2' } },
-      { name: 'Guest mode', entity: 'input_boolean.guest_mode', icon: 'mdi:account-plus', tap_action: { action: 'toggle', entity: 'input_boolean.guest_mode' } },
-      { name: 'Away mode', entity: 'input_boolean.away_mode', icon: 'mdi:home-export-outline', tap_action: { action: 'toggle', entity: 'input_boolean.away_mode' } },
+      { name: 'Gastmodus', entity: 'input_boolean.guest_mode', icon: 'mdi:account-plus', tap_action: { action: 'toggle', entity: 'input_boolean.guest_mode' } },
+      { name: 'Abwesenheitsmodus', entity: 'input_boolean.away_mode', icon: 'mdi:home-export-outline', tap_action: { action: 'toggle', entity: 'input_boolean.away_mode' } },
     ],
   },
   {
-    id: 'systems', label: 'Systems', title: 'SYSTEMS', subtitle: 'Infrastructure', icon: 'mdi:database-cog-outline',
+    id: 'systems', label: 'System', title: 'SYSTEM', subtitle: 'Infrastruktur', icon: 'mdi:database-cog-outline',
     tiles: [
-      { name: 'UPS', entity: 'sensor.ups_battery', icon: 'mdi:battery-high', tap_action: { action: 'more-info', entity: 'sensor.ups_battery' } },
+      { name: 'USV', entity: 'sensor.ups_battery', icon: 'mdi:battery-high', tap_action: { action: 'more-info', entity: 'sensor.ups_battery' } },
       { name: 'Router', entity: 'binary_sensor.router_status', icon: 'mdi:router-network', tap_action: { action: 'more-info', entity: 'binary_sensor.router_status' } },
       { name: 'Server', entity: 'sensor.server_status', icon: 'mdi:server', tap_action: { action: 'more-info', entity: 'sensor.server_status' } },
-      { name: 'Logs', icon: 'mdi:text-box-search', label: 'Navigate', tap_action: { action: 'navigate', navigation_path: '/config/logs' } },
+      { name: 'Protokolle', icon: 'mdi:text-box-search', label: 'Navigation', tap_action: { action: 'navigate', navigation_path: '/config/logs' } },
     ],
   },
 ];
 
 const DEFAULT_CONFIG = {
-  title: 'LIVING ROOM',
-  subtitle: 'Ground floor',
+  title: 'WOHNZIMMER',
+  subtitle: 'Erdgeschoss',
   background_image: '',
   image: '/local/neo-dashboard/living-room.png',
-  scene_label: 'SCENE',
+  scene_label: 'SZENE',
   scene_entity: 'scene.living_room_evening',
   temperature_entity: 'sensor.living_room_temperature',
   humidity_entity: 'sensor.living_room_humidity',
   all_lights_entity: 'light.living_room_all',
   default_page: 'overview',
   top_tabs: [
-    { label: 'SYSTEMS', tap_action: { action: 'none' } },
-    { label: 'MAINTENANCE', tap_action: { action: 'navigate', navigation_path: '/lovelace/maintenance' } },
+    { label: 'SYSTEM', tap_action: { action: 'none' } },
+    { label: 'WARTUNG', tap_action: { action: 'navigate', navigation_path: '/lovelace/maintenance' } },
   ],
   systems: [
-    { icon: 'mdi:check-circle', name: 'ALARM', entity: 'alarm_control_panel.home_alarm', label: 'Not armed', color: 'muted', tap_action: { action: 'more-info', entity: 'alarm_control_panel.home_alarm' } },
-    { icon: 'mdi:check-circle', name: 'SECURITY CAMERAS', entity: 'camera.front_door', label: 'Recording', color: 'muted', tap_action: { action: 'more-info', entity: 'camera.front_door' } },
-    { icon: 'mdi:alert', name: 'BACKUPS', entity: 'sensor.backup_state', label: 'Cloud backup outdated', color: 'orange', tap_action: { action: 'more-info', entity: 'sensor.backup_state' } },
-    { icon: 'mdi:check-circle', name: 'UPS', entity: 'sensor.ups_battery', label: '100% / 94m', color: 'muted', tap_action: { action: 'more-info', entity: 'sensor.ups_battery' } },
+    { icon: 'mdi:check-circle', name: 'ALARM', entity: 'alarm_control_panel.home_alarm', label: 'Nicht scharf', color: 'muted', tap_action: { action: 'more-info', entity: 'alarm_control_panel.home_alarm' } },
+    { icon: 'mdi:check-circle', name: 'KAMERAS', entity: 'camera.front_door', label: 'Aufzeichnung', color: 'muted', tap_action: { action: 'more-info', entity: 'camera.front_door' } },
+    { icon: 'mdi:alert', name: 'BACKUPS', entity: 'sensor.backup_state', label: 'Cloud-Backup veraltet', color: 'orange', tap_action: { action: 'more-info', entity: 'sensor.backup_state' } },
+    { icon: 'mdi:check-circle', name: 'USV', entity: 'sensor.ups_battery', label: '100% / 94m', color: 'muted', tap_action: { action: 'more-info', entity: 'sensor.ups_battery' } },
   ],
   metrics: [
     { name: 'CPU_Centauri (avg. 24h)', entity: 'sensor.centauri_cpu', max: 100, tap_action: { action: 'more-info', entity: 'sensor.centauri_cpu' } },
-    { name: 'Storage: Ganymede', entity: 'sensor.ganymede_storage', max: 100, tap_action: { action: 'more-info', entity: 'sensor.ganymede_storage' } },
-    { name: 'Storage: Metis', entity: 'sensor.metis_storage', max: 100, tap_action: { action: 'more-info', entity: 'sensor.metis_storage' } },
+    { name: 'Speicher: Ganymede', entity: 'sensor.ganymede_storage', max: 100, tap_action: { action: 'more-info', entity: 'sensor.ganymede_storage' } },
+    { name: 'Speicher: Metis', entity: 'sensor.metis_storage', max: 100, tap_action: { action: 'more-info', entity: 'sensor.metis_storage' } },
     { name: 'Starman', entity: 'sensor.starman_speed', max: 5000, unit: 'km/h', tap_action: { action: 'more-info', entity: 'sensor.starman_speed' } },
   ],
   gauges: [
-    { name: 'TEMP', entity: 'sensor.living_room_temperature', unit: '°C', max: 30, color: '#aeb5e9', label: 'Comfortable', tap_action: { action: 'more-info', entity: 'sensor.living_room_temperature' } },
-    { name: 'HUMIDITY', entity: 'sensor.living_room_humidity', unit: '%', max: 100, color: '#f29a37', label: 'Dry', tap_action: { action: 'more-info', entity: 'sensor.living_room_humidity' } },
-    { name: 'HEATING', entity: 'climate.living_room', value_entity: 'sensor.living_room_target_temperature', unit: '°C', max: 30, color: '#2c9cff', controls: ['-', '+'], tap_action: { action: 'more-info', entity: 'climate.living_room' } },
-    { name: 'ALL LIGHTS', entity: 'light.living_room_all', value_entity: 'sensor.living_room_light_level', unit: '%', max: 100, color: '#2c9cff', controls: ['OFF', 'DIM'], tap_action: { action: 'toggle', entity: 'light.living_room_all' } },
-    { name: 'FLOOR LAMP', entity: 'light.floor_lamp', value_entity: 'sensor.floor_lamp_brightness', unit: '%', max: 100, color: '#2c9cff', controls: ['OFF', 'DIM'], tap_action: { action: 'toggle', entity: 'light.floor_lamp' } },
-    { name: 'CEILING SPOTS', entity: 'light.ceiling_spots', value_entity: 'sensor.ceiling_spots_brightness', unit: '%', max: 100, color: '#2c9cff', controls: ['ON', ''], tap_action: { action: 'toggle', entity: 'light.ceiling_spots' } },
+    { name: 'TEMP', entity: 'sensor.living_room_temperature', unit: '°C', max: 30, color: '#aeb5e9', label: 'Angenehm', tap_action: { action: 'more-info', entity: 'sensor.living_room_temperature' } },
+    { name: 'FEUCHTE', entity: 'sensor.living_room_humidity', unit: '%', max: 100, color: '#f29a37', label: 'Trocken', tap_action: { action: 'more-info', entity: 'sensor.living_room_humidity' } },
+    { name: 'HEIZUNG', entity: 'climate.living_room', value_entity: 'sensor.living_room_target_temperature', unit: '°C', max: 30, color: '#2c9cff', controls: ['-', '+'], tap_action: { action: 'more-info', entity: 'climate.living_room' } },
+    { name: 'ALLE LICHTER', entity: 'light.living_room_all', value_entity: 'sensor.living_room_light_level', unit: '%', max: 100, color: '#2c9cff', controls: ['OFF', 'DIM'], tap_action: { action: 'toggle', entity: 'light.living_room_all' } },
+    { name: 'STEHLAMPE', entity: 'light.floor_lamp', value_entity: 'sensor.floor_lamp_brightness', unit: '%', max: 100, color: '#2c9cff', controls: ['OFF', 'DIM'], tap_action: { action: 'toggle', entity: 'light.floor_lamp' } },
+    { name: 'DECKENSPOTS', entity: 'light.ceiling_spots', value_entity: 'sensor.ceiling_spots_brightness', unit: '%', max: 100, color: '#2c9cff', controls: ['ON', ''], tap_action: { action: 'toggle', entity: 'light.ceiling_spots' } },
   ],
   pages: DEFAULT_PAGES,
 };
@@ -544,7 +583,7 @@ function stateLabel(hass, item) {
   return `${state.state}${state.attributes?.unit_of_measurement ? ` ${state.attributes.unit_of_measurement}` : ''}`;
 }
 
-function parseAction(value) {
+function parseAktion(value) {
   try {
     return value ? JSON.parse(value) : {};
   } catch (_error) {
@@ -582,5 +621,5 @@ window.customCards.push({
   type: 'ha-neo-dashboard',
   name: 'HA Neo Dashboard',
   preview: true,
-  description: 'A fullscreen Home Assistant dashboard with configurable pages, background, tiles and actions.',
+  description: 'Ein Vollbild-Home-Assistant-Dashboard mit konfigurierbaren Seiten, Hintergrund, Kacheln und Aktionen.',
 });
