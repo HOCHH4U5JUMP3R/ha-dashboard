@@ -496,15 +496,45 @@ views:
               - name: CPU
                 entity: sensor.mediacenter22_cpu
                 icon: mdi:cpu-64-bit
-              - name: Temperatur
+              - name: CPU Temperatur
                 entity: sensor.mediacenter22_temperature
                 icon: mdi:thermometer
+              - name: Netzwerk Download
+                entity: sensor.mediacenter22_network_download
+                icon: mdi:download-network
+              - name: Netzwerk Upload
+                entity: sensor.mediacenter22_network_upload
+                icon: mdi:upload-network
+              - name: RAM Nutzung
+                entity: sensor.mediacenter22_ram_usage
+                icon: mdi:memory
+              - name: RAM Frei
+                entity: sensor.mediacenter22_ram_free
+                icon: mdi:database
+              - name: Speicher Nutzung
+                entity: sensor.mediacenter22_storage_usage
+                icon: mdi:harddisk
+              - name: Speicher Frei
+                entity: sensor.mediacenter22_storage_free
+                icon: mdi:database-outline
               - name: Lüfter 1
                 entity: sensor.mediacenter22_fan_1
                 icon: mdi:fan
               - name: Lüfter 2
                 entity: sensor.mediacenter22_fan_2
                 icon: mdi:fan
+              - name: Festplatte 1
+                entity: sensor.mediacenter22_disk_1_temperature
+                icon: mdi:harddisk
+              - name: Festplatte 2
+                entity: sensor.mediacenter22_disk_2_temperature
+                icon: mdi:harddisk
+              - name: Festplatte 3
+                entity: sensor.mediacenter22_disk_3_temperature
+                icon: mdi:harddisk
+              - name: Festplatte 4
+                entity: sensor.mediacenter22_disk_4_temperature
+                icon: mdi:harddisk
               - name: Download
                 entity: sensor.fritzbox_download_speed
                 icon: mdi:download-network
@@ -574,7 +604,7 @@ views:
               - name: Datenträgerbelegung
                 entity: sensor.synology_rs1221_storage
                 icon: mdi:chart-areaspline
-                span: 3
+                span: 4
           - id: systems
             label: System
             title: SYSTEM

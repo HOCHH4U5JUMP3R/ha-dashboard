@@ -49,8 +49,8 @@ class HaNeoDashboard extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>${this.styles}</style>
       <ha-card style="${this.backgroundStyle}">
-        <section class="dashboard-shell ${page && page.type !== 'rooms' && page.type !== 'overview' ? 'is-full-page' : ''}">
-          ${page && page.type !== 'rooms' && page.type !== 'overview' ? '' : this.renderLeftPanel()}
+        <section class="dashboard-shell ${page && page.type !== 'rooms' && page.type !== 'overview' ? 'is-content-page' : ''}">
+          ${this.renderLeftPanel()}
           <main class="content-panel">
             ${page?.type === 'rooms' ? this.renderRooms() : page?.type === 'overview' ? this.renderÜbersicht() : this.renderPage(page)}
           </main>
@@ -59,6 +59,8 @@ class HaNeoDashboard extends HTMLElement {
         </section>
       </ha-card>
     `;
+
+    this.hydrateCustomCards(page);
   }
 
   renderLeftPanel() {
@@ -180,7 +182,54 @@ class HaNeoDashboard extends HTMLElement {
     `;
   }
 
+
+  renderCustomCardPage(page, className = 'custom-card-grid') {
+    return `
+      ${this.renderTitle(page?.title || this.activeConfig.title, page?.subtitle || this.activeConfig.subtitle)}
+      <section class="${escapeAttr(className)}">
+        ${(page?.cards || []).map((card, index) => `<div class="lovelace-card-host" data-lovelace-card="${index}"></div>`).join('')}
+      </section>
+    `;
+  }
+
+  hydrateCustomCards(page) {
+    const hosts = [...(this.shadowRoot?.querySelectorAll('[data-lovelace-card]') || [])];
+    if (!hosts.length || !page?.cards?.length) {
+      return;
+    }
+
+    hosts.forEach((host) => {
+      const cardConfig = resolveRoomValue(page.cards[Number(host.dataset.lovelaceCard)], this.activeRoom);
+      if (!cardConfig || !cardConfig.type) {
+        return;
+      }
+
+      this.createLovelaceCard(cardConfig).then((card) => {
+        if (!card) {
+          return;
+        }
+        card.hass = this._hass;
+        host.replaceChildren(card);
+      });
+    });
+  }
+
+  async createLovelaceCard(cardConfig) {
+    if (window.loadCardHelpers) {
+      const helpers = await window.loadCardHelpers();
+      return helpers.createCardElement(cardConfig);
+    }
+
+    const element = document.createElement('hui-card');
+    element.setConfig(cardConfig);
+    return element;
+  }
+
   renderPage(page) {
+    if (page?.cards?.length) {
+      return this.renderCustomCardPage(page, page?.id === 'server' ? 'server-custom-card-grid' : 'custom-card-grid');
+    }
+
     if (page?.id === 'climate') {
       return this.renderClimatePage(page);
     }
@@ -318,7 +367,7 @@ class HaNeoDashboard extends HTMLElement {
     const resolvedTile = resolveRoomValue(tile, this.activeRoom);
     const entity = resolvedTile.entity ? this._hass.states[resolvedTile.entity] : undefined;
     const state = resolvedTile.value ?? (entity ? `${this.formatState(entity)}${this.unitSuffix(entity)}` : resolvedTile.label || '—');
-    const wide = resolvedTile.span === 2 ? ' span-2' : resolvedTile.span === 3 ? ' span-3' : '';
+    const wide = resolvedTile.span === 2 ? ' span-2' : resolvedTile.span === 3 ? ' span-3' : resolvedTile.span === 4 ? ' span-4' : '';
     const active = entity && !['off', 'unavailable', 'unknown'].includes(entity.state);
 
     return `
@@ -727,34 +776,41 @@ class HaNeoDashboard extends HTMLElement {
       .chip { display: inline-flex; gap: 7px; align-items: center; border-radius: 999px; padding: 7px 12px; background: rgba(22, 27, 68, .76); color: var(--neo-text); }
       .chip ha-icon { width: 18px; color: var(--neo-blue); }
       .page-grid, .rooms-grid { width: min(760px, 100%); display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 16px; }
-      .is-full-page { grid-template-columns: 1fr; grid-template-areas: 'content' 'nav'; padding-left: 56px; }
-      .is-full-page .content-panel { align-content: start; overflow: hidden auto; padding-bottom: 18px; }
-      .is-full-page .room-title { margin-bottom: 24px; }
-      .page-grid-wide, .full-page-grid, .server-layout { width: min(1120px, 100%); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+      .is-content-page { grid-template-columns: minmax(230px, 280px) minmax(0, 1fr); grid-template-areas: 'left content' 'left nav'; padding-right: 56px; }
+      .is-content-page .content-panel { align-content: start; overflow: hidden auto; padding-bottom: 18px; }
+      .is-content-page .room-title { margin-bottom: 24px; }
+      .page-grid-wide, .full-page-grid, .server-layout { width: min(820px, 100%); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
       .full-page-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .span-2 { grid-column: span 2; }
-      .span-3 { grid-column: 1 / -1; }
+      .span-3 { grid-column: span 3; }
+      .span-4 { grid-column: 1 / -1; }
       .history-panel, .info-card, .camera-panel, .server-tile { min-height: 112px; display: grid; gap: 12px; align-content: center; padding: 18px; border-radius: 18px; background: rgba(20, 24, 57, .62); border: 1px solid rgba(125, 145, 255, .18); text-align: left; box-shadow: 0 20px 36px rgba(0, 0, 0, .18); }
       .history-panel { min-height: 210px; }
       .history-panel .panel-head { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; }
-      .history-panel .panel-head ha-icon, .info-card ha-icon, .server-tile ha-icon { width: 28px; height: 28px; color: var(--neo-blue); }
+      .history-panel .panel-head ha-icon, .info-card ha-icon { width: 28px; height: 28px; color: var(--neo-blue); }
+      .server-tile ha-icon { width: 20px; height: 20px; color: var(--neo-blue); }
       .history-panel .panel-head small, .info-card small, .server-tile small { color: var(--neo-muted); }
       .history-panel svg { width: 100%; height: 100px; border-radius: 12px; background: linear-gradient(180deg, rgba(44, 156, 255, .10), rgba(44, 156, 255, .02)); }
       .history-panel polyline { fill: none; stroke: var(--neo-blue); stroke-width: 3; vector-effect: non-scaling-stroke; }
       .history-panel b { font-size: 26px; }
       .info-card { grid-template-columns: 42px 1fr; align-items: center; }
-      .info-card strong, .server-tile strong { display: block; font-size: 15px; }
-      .info-card small, .server-tile small { display: block; margin-top: 6px; font-size: 12px; }
+      .info-card strong { display: block; font-size: 15px; }
+      .server-tile strong { display: block; font-size: 12px; }
+      .info-card small { display: block; margin-top: 6px; font-size: 12px; }
+      .server-tile small { display: block; margin-top: 3px; color: var(--neo-muted); font-size: 11px; }
       .light-control-card .device-control-card { min-height: 132px; }
       .camera-panel { min-height: 280px; background: radial-gradient(circle at center, rgba(44, 156, 255, .18), rgba(20, 24, 57, .62)); place-items: center; text-align: center; }
       .camera-panel span { display: inline-flex; align-items: center; gap: 10px; color: var(--neo-muted); }
       .camera-panel ha-icon { width: 46px; height: 46px; color: var(--neo-blue); }
       .camera-panel strong { font-size: 22px; }
-      .media-layout .device-control-card, .server-tile { min-height: 134px; }
-      .server-layout { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .server-tile { min-height: 88px; grid-template-columns: 34px 1fr; align-items: center; }
+      .media-layout .device-control-card { min-height: 134px; }
+      .server-layout { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+      .server-tile { min-height: 48px; grid-template-columns: 24px 1fr; gap: 8px; align-items: center; padding: 9px 10px; border-radius: 10px; }
       .server-tile.active { border-color: rgba(75, 214, 105, .45); }
       .server-tile.active ha-icon { color: #4bd669; }
+      .custom-card-grid, .server-custom-card-grid { width: min(820px, 100%); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .server-custom-card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+      .lovelace-card-host { min-width: 0; }
       .rooms-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
       .room-card { min-height: 136px; display: grid; grid-template-columns: 48px 1fr; grid-template-rows: auto auto; gap: 10px 14px; align-items: center; padding: 18px; border-radius: 18px; background: linear-gradient(135deg, rgba(20, 24, 57, .74), rgba(12, 16, 43, .64)); border: 1px solid rgba(125, 145, 255, .20); text-align: left; box-shadow: 0 20px 36px rgba(0, 0, 0, .18); }
       .room-card.active { border-color: rgba(44, 156, 255, .62); box-shadow: 0 0 34px rgba(44, 156, 255, .18); }
@@ -829,10 +885,11 @@ class HaNeoDashboard extends HTMLElement {
         .gauge-value { font-size: 23px; }
         .gauge-unit { font-size: 14px; }
         .page-grid, .rooms-grid { width: min(650px, 100%); gap: 14px; }
-        .page-grid-wide, .full-page-grid, .server-layout { width: min(1020px, 100%); gap: 12px; }
+        .page-grid-wide, .full-page-grid, .server-layout, .custom-card-grid, .server-custom-card-grid { width: min(820px, 100%); gap: 10px; }
         .history-panel { min-height: 176px; }
         .history-panel svg { height: 76px; }
-        .server-tile { min-height: 74px; padding: 14px; }
+        .is-content-page { grid-template-columns: 252px 1fr; grid-template-areas: 'left content' 'left nav'; padding-right: 64px; }
+        .server-tile { min-height: 44px; padding: 8px 9px; }
         .rooms-grid { grid-template-columns: repeat(2, minmax(200px, 1fr)); }
         .room-card { min-height: 118px; padding: 14px; }
         .feature-tile { min-height: 96px; padding: 15px; }
@@ -843,8 +900,8 @@ class HaNeoDashboard extends HTMLElement {
         ha-card { min-height: 100dvh; height: auto; }
         .dashboard-shell { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'content' 'right' 'left' 'nav'; padding: 24px 16px 0; min-height: 100dvh; }
         .right-panel { grid-template-columns: repeat(2, minmax(140px, 1fr)); padding-right: 0; }
-        .page-grid, .rooms-grid, .page-grid-wide, .full-page-grid, .server-layout { grid-template-columns: 1fr; }
-        .span-2, .span-3 { grid-column: auto; }
+        .page-grid, .rooms-grid, .page-grid-wide, .full-page-grid, .server-layout, .custom-card-grid, .server-custom-card-grid { grid-template-columns: 1fr; }
+        .span-2, .span-3, .span-4 { grid-column: auto; }
         .room-title { margin-bottom: 28px; }
         .bottom-nav { overflow-x: auto; justify-self: stretch; }
       }
@@ -924,9 +981,19 @@ const DEFAULT_PAGES = [
     tiles: [
       { name: 'MediaCenter22', entity: 'sensor.mediacenter22_status', icon: 'mdi:power', span: 2, tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_status' } },
       { name: 'CPU', entity: 'sensor.mediacenter22_cpu', icon: 'mdi:cpu-64-bit', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_cpu' } },
-      { name: 'Temperatur', entity: 'sensor.mediacenter22_temperature', icon: 'mdi:thermometer', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_temperature' } },
+      { name: 'CPU Temperatur', entity: 'sensor.mediacenter22_temperature', icon: 'mdi:thermometer', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_temperature' } },
+      { name: 'Netzwerk Download', entity: 'sensor.mediacenter22_network_download', icon: 'mdi:download-network', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_network_download' } },
+      { name: 'Netzwerk Upload', entity: 'sensor.mediacenter22_network_upload', icon: 'mdi:upload-network', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_network_upload' } },
+      { name: 'RAM Nutzung', entity: 'sensor.mediacenter22_ram_usage', icon: 'mdi:memory', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_ram_usage' } },
+      { name: 'RAM Frei', entity: 'sensor.mediacenter22_ram_free', icon: 'mdi:database', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_ram_free' } },
+      { name: 'Speicher Nutzung', entity: 'sensor.mediacenter22_storage_usage', icon: 'mdi:harddisk', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_storage_usage' } },
+      { name: 'Speicher Frei', entity: 'sensor.mediacenter22_storage_free', icon: 'mdi:database-outline', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_storage_free' } },
       { name: 'Lüfter 1', entity: 'sensor.mediacenter22_fan_1', icon: 'mdi:fan', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_fan_1' } },
       { name: 'Lüfter 2', entity: 'sensor.mediacenter22_fan_2', icon: 'mdi:fan', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_fan_2' } },
+      { name: 'Festplatte 1', entity: 'sensor.mediacenter22_disk_1_temperature', icon: 'mdi:harddisk', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_disk_1_temperature' } },
+      { name: 'Festplatte 2', entity: 'sensor.mediacenter22_disk_2_temperature', icon: 'mdi:harddisk', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_disk_2_temperature' } },
+      { name: 'Festplatte 3', entity: 'sensor.mediacenter22_disk_3_temperature', icon: 'mdi:harddisk', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_disk_3_temperature' } },
+      { name: 'Festplatte 4', entity: 'sensor.mediacenter22_disk_4_temperature', icon: 'mdi:harddisk', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_disk_4_temperature' } },
       { name: 'Download', entity: 'sensor.fritzbox_download_speed', icon: 'mdi:download-network', tap_action: { action: 'more-info', entity: 'sensor.fritzbox_download_speed' } },
       { name: 'Upload', entity: 'sensor.fritzbox_upload_speed', icon: 'mdi:upload-network', tap_action: { action: 'more-info', entity: 'sensor.fritzbox_upload_speed' } },
       { name: 'Empfangen', entity: 'sensor.fritzbox_received', icon: 'mdi:download', tap_action: { action: 'more-info', entity: 'sensor.fritzbox_received' } },
@@ -947,7 +1014,7 @@ const DEFAULT_PAGES = [
       { name: 'Radarr', entity: 'sensor.radarr_status', icon: 'mdi:filmstrip', tap_action: { action: 'more-info', entity: 'sensor.radarr_status' } },
       { name: 'Sonarr', entity: 'sensor.sonarr_status', icon: 'mdi:television-classic', tap_action: { action: 'more-info', entity: 'sensor.sonarr_status' } },
       { name: 'qBittorrent', entity: 'sensor.qbittorrent_status', icon: 'mdi:alpha-q-box', tap_action: { action: 'more-info', entity: 'sensor.qbittorrent_status' } },
-      { name: 'Datenträgerbelegung', entity: 'sensor.synology_rs1221_storage', icon: 'mdi:chart-areaspline', span: 3, tap_action: { action: 'more-info', entity: 'sensor.synology_rs1221_storage' } },
+      { name: 'Datenträgerbelegung', entity: 'sensor.synology_rs1221_storage', icon: 'mdi:chart-areaspline', span: 4, tap_action: { action: 'more-info', entity: 'sensor.synology_rs1221_storage' } },
     ],
   },
 ];

@@ -169,7 +169,24 @@ room_overview_top_tabs:
       entity: weather.home
 ```
 
-Auf Funktionsseiten wie Klima, Lichter, Sicherheit, Medien oder Server werden linke Statusspalte und rechte Gauge-Leiste ausgeblendet. Der Inhalt nutzt stattdessen die volle Dashboard-Breite: Klima zeigt oben zwei halbbreite 7-Tage-Verläufe, darunter Istwerte und Heizungssteuerung; Lichter zeigt alle Licht-Entities mit AN/AUS und Helligkeit; Sicherheit bereitet Kamerafeed sowie Tür-/Fenstersensoren vor; Medien bündelt Xbox, PlayStation und Apple TV; Server bildet den MediaCenter-/Fritz!Box-/Dienstestatus im breiten Kachelraster ab.
+Auf Funktionsseiten wie Klima, Lichter, Sicherheit, Medien oder Server bleibt die linke Statusspalte erhalten; nur die rechte Gauge-Leiste wird ausgeblendet. Der Inhalt nutzt dadurch die zusammengelegte Mittel-/Rechtsfläche: Klima zeigt oben zwei halbbreite 7-Tage-Verläufe, darunter Istwerte und Heizungssteuerung; Lichter zeigt alle Licht-Entities mit AN/AUS und Helligkeit; Sicherheit bereitet Kamerafeed sowie Tür-/Fenstersensoren vor; Medien bündelt Xbox, PlayStation und Apple TV; Server bildet den MediaCenter-/Fritz!Box-/Dienstestatus im breiten Kachelraster ab.
+
+Wenn du für den Server-Reiter eigene Mushroom- oder andere Lovelace-Karten bauen möchtest, kannst du innerhalb einer Seite statt `tiles` auch `cards` verwenden. Diese Einträge werden als echte Home-Assistant-Karten gerendert und können mit normalem Lovelace-/Mushroom-YAML befüllt werden; Platzhalter wie `{prefix}` funktionieren weiterhin:
+
+```yaml
+pages:
+  - id: server
+    label: Server
+    rooms: [office]
+    cards:
+      - type: custom:mushroom-template-card
+        primary: MediaCenter22
+        secondary: "{{ states('sensor.mediacenter22_cpu') }} % CPU"
+        icon: mdi:server
+      - type: custom:mushroom-entity-card
+        entity: sensor.fritzbox_download_speed
+        name: Download
+```
 
 Untere Reiter können global oder pro Raum eingeschränkt und erweitert werden. Beispiel: Server nur im Büro anzeigen und im Schlafzimmer Medien ausblenden:
 
