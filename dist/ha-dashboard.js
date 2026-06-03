@@ -65,6 +65,10 @@ class HaNeoDashboard extends HTMLElement {
 
   renderLeftPanel() {
     const page = this.activePage;
+    if (page?.id === 'server') {
+      return this.renderServerStatusPanel(page);
+    }
+
     const cfg = page?.type === 'rooms'
       ? {
         top_tabs: this.config.room_overview_top_tabs || [],
@@ -88,6 +92,64 @@ class HaNeoDashboard extends HTMLElement {
         </div>` : ''}
       </aside>
     `;
+  }
+
+  renderServerStatusPanel(page) {
+    const resolvedPage = resolveRoomValue(page, this.activeRoom);
+    const sections = resolvedPage.server_status_sections || [];
+
+    return `
+      <aside class="left-panel server-status-panel">
+        <button class="server-status-title" type="button" data-action='${jsonAttr(actionFor(resolvedPage.server || {}))}'>
+          <ha-icon icon="${escapeAttr(resolvedPage.server?.icon || 'mdi:nas')}"></ha-icon>
+          <span>${escapeHtml(resolvedPage.server?.name || 'MediaCenter22')}</span>
+        </button>
+        <div class="server-status-sections">
+          ${sections.map((section) => this.renderServerStatusSection(section)).join('')}
+        </div>
+      </aside>
+    `;
+  }
+
+  renderServerStatusSection(section) {
+    return `
+      <section class="server-status-section">
+        <h3><ha-icon icon="${escapeAttr(section.icon || 'mdi:server-network')}"></ha-icon>${escapeHtml(section.heading || section.name || '')}</h3>
+        <div class="server-status-badges">
+          ${(section.badges || []).map((badge) => this.renderServerStatusBadge(badge)).join('')}
+        </div>
+      </section>
+    `;
+  }
+
+  renderServerStatusBadge(badge) {
+    const state = badge.entity ? this._hass.states[badge.entity] : undefined;
+    const value = state ? `${this.formatState(state)}${this.unitSuffix(state)}` : (badge.label || '—');
+    const color = this.serverStatusColor(badge, state);
+
+    return `
+      <button class="server-status-badge ${escapeAttr(color)}" type="button" data-action='${jsonAttr(actionFor(badge))}'>
+        <ha-icon icon="${escapeAttr(badge.icon || 'mdi:circle-medium')}"></ha-icon>
+        <span>${escapeHtml(value)}</span>
+      </button>
+    `;
+  }
+
+  serverStatusColor(badge, state) {
+    const value = Number(state?.state);
+    if (Number.isFinite(value)) {
+      if (Number.isFinite(Number(badge.critical_above)) && value > Number(badge.critical_above)) {
+        return 'red';
+      }
+      if (Number.isFinite(Number(badge.warning_above)) && value > Number(badge.warning_above)) {
+        return 'orange';
+      }
+      if (Number.isFinite(Number(badge.ok_below)) && value < Number(badge.ok_below)) {
+        return badge.ok_color || 'green';
+      }
+    }
+
+    return badge.color || 'muted';
   }
 
   renderStatusRow(item) {
@@ -746,6 +808,7 @@ class HaNeoDashboard extends HTMLElement {
         padding: 34px 56px 0 28px;
         background: rgba(5, 8, 26, .2);
         backdrop-filter: saturate(120%);
+        position: relative;
       }
       .left-panel { grid-area: left; }
       .content-panel { grid-area: content; display: grid; align-content: start; justify-items: center; min-width: 0; }
@@ -766,6 +829,22 @@ class HaNeoDashboard extends HTMLElement {
       .metric b { color: var(--neo-text); font-size: 14px; font-weight: 500; }
       .metric i { grid-column: 1 / -1; height: 4px; border-radius: 999px; background: rgba(125, 137, 198, .28); overflow: hidden; }
       .metric em { display: block; height: 100%; border-radius: inherit; background: #aeb5e9; }
+      .server-status-panel { overflow: hidden auto; padding-bottom: 86px; }
+      .server-status-title { display: grid; grid-template-columns: 38px 1fr; gap: 12px; align-items: center; width: 100%; min-height: 56px; margin-bottom: 20px; padding: 0 12px; border-radius: 14px; background: rgba(20, 24, 57, .68); text-align: left; font-size: 14px; font-weight: 800; }
+      .server-status-title ha-icon { width: 26px; height: 26px; color: #f0c33c; }
+      .server-status-sections { display: grid; gap: 14px; }
+      .server-status-section { display: grid; gap: 9px; }
+      .server-status-section h3 { display: flex; align-items: center; gap: 9px; margin: 0; color: var(--neo-muted); font-size: 13px; font-weight: 800; }
+      .server-status-section h3 ha-icon { width: 18px; height: 18px; color: var(--neo-muted); }
+      .server-status-badges { display: flex; flex-wrap: wrap; gap: 7px; padding-left: 28px; }
+      .server-status-badge { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 3px 7px; border-radius: 999px; background: rgba(20, 24, 57, .62); color: var(--neo-muted); font-size: 11px; font-weight: 700; }
+      .server-status-badge ha-icon { width: 15px; height: 15px; }
+      .server-status-badge.green { color: #4bd669; }
+      .server-status-badge.orange { color: var(--neo-orange); }
+      .server-status-badge.red { color: #ff5148; }
+      .server-status-badge.blue { color: var(--neo-blue); }
+      .server-status-badge.purple { color: #a274ff; }
+      .server-status-badge.yellow { color: #f0c33c; }
       .room-title { width: 190px; margin: 0 auto 38px; border: 1px solid rgba(169, 181, 232, .38); border-radius: 7px; padding: 12px 8px 10px; text-align: center; background: rgba(12, 15, 36, .55); }
       .room-title h2 { margin: 0; font-size: 22px; font-weight: 500; letter-spacing: .03em; }
       .room-title p { margin: 10px 0 0; color: var(--neo-muted); font-size: 11px; }
@@ -847,7 +926,7 @@ class HaNeoDashboard extends HTMLElement {
       .device-control-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
       .device-control-buttons button { min-height: 26px; border-radius: 999px; background: rgba(44, 156, 255, .18); color: var(--neo-text); font-size: 11px; font-weight: 800; }
       .device-empty { padding: 16px; color: var(--neo-muted); text-align: center; }
-      .bottom-nav { grid-area: nav; align-self: end; justify-self: center; display: flex; gap: 8px; width: min(720px, 100%); padding: 7px 12px; border-radius: 28px 28px 0 0; background: linear-gradient(180deg, rgba(27, 31, 78, .92), rgba(11, 14, 39, .96)); box-shadow: 0 -8px 32px rgba(30, 66, 210, .25); }
+      .bottom-nav { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); display: flex; gap: 8px; width: min(720px, calc(100% - 64px)); padding: 7px 12px; border-radius: 28px 28px 0 0; background: linear-gradient(180deg, rgba(27, 31, 78, .92), rgba(11, 14, 39, .96)); box-shadow: 0 -8px 32px rgba(30, 66, 210, .25); }
       .nav-item { position: relative; display: grid; gap: 3px; justify-items: center; flex: 1 1 0; min-width: 54px; padding: 6px 4px; background: transparent; color: var(--neo-muted); font-size: 10px; }
       .nav-item ha-icon { color: currentColor; width: 22px; height: 22px; }
       .nav-item.active { color: var(--neo-text); }
@@ -903,7 +982,7 @@ class HaNeoDashboard extends HTMLElement {
         .page-grid, .rooms-grid, .page-grid-wide, .full-page-grid, .server-layout, .custom-card-grid, .server-custom-card-grid { grid-template-columns: 1fr; }
         .span-2, .span-3, .span-4 { grid-column: auto; }
         .room-title { margin-bottom: 28px; }
-        .bottom-nav { overflow-x: auto; justify-self: stretch; }
+        .bottom-nav { position: static; transform: none; width: 100%; overflow-x: auto; justify-self: stretch; }
       }
     `;
   }
@@ -978,22 +1057,49 @@ const DEFAULT_PAGES = [
   },
   {
     id: 'server', label: 'Server', title: 'SERVER', subtitle: 'MediaCenter22, Fritz!Box und Dienste', icon: 'mdi:server-network', rooms: ['office'],
+    server: { name: 'MediaCenter22', icon: 'mdi:nas', entity: 'binary_sensor.192_168_178_22', tap_action: { action: 'more-info', entity: 'binary_sensor.192_168_178_22' } },
+    server_status_sections: [
+      {
+        heading: 'CPU', icon: 'mdi:nas', badges: [
+          { entity: 'sensor.192_168_178_22_cpu_auslastung', icon: 'phu:intel-cpu', ok_below: 50, warning_above: 50, name: 'CPU Auslastung' },
+          { entity: 'sensor.192_168_178_22_k10temp_0_temperatur', icon: 'mdi:thermometer', ok_below: 75, critical_above: 74, name: 'CPU Temperatur' },
+        ],
+      },
+      {
+        heading: 'Lüfter', icon: 'mdi:fan', badges: [
+          { entity: 'sensor.mediacenter22_fan_1', icon: 'mdi:fan', color: 'blue', name: 'Lüfter 1' },
+          { entity: 'sensor.mediacenter22_fan_2', icon: 'mdi:fan', color: 'blue', name: 'Lüfter 2' },
+        ],
+      },
+      {
+        heading: 'Netzwerk', icon: 'mdi:network', badges: [
+          { entity: 'sensor.mediacenter22_network_download', icon: 'mdi:download-network', color: 'blue', name: 'Download' },
+          { entity: 'sensor.mediacenter22_network_upload', icon: 'mdi:upload-network', color: 'blue', name: 'Upload' },
+        ],
+      },
+      {
+        heading: 'RAM', icon: 'mdi:memory', badges: [
+          { entity: 'sensor.mediacenter22_ram_usage', icon: 'mdi:memory', ok_below: 50, warning_above: 50, name: 'RAM Nutzung' },
+          { entity: 'sensor.mediacenter22_ram_free', icon: 'mdi:database', color: 'green', name: 'RAM Frei' },
+        ],
+      },
+      {
+        heading: 'Speicher', icon: 'mdi:harddisk', badges: [
+          { entity: 'sensor.mediacenter22_storage_usage', icon: 'mdi:harddisk', ok_below: 70, warning_above: 70, name: 'Speicher Nutzung' },
+          { entity: 'sensor.mediacenter22_storage_free', icon: 'mdi:database-outline', color: 'yellow', name: 'Speicher Frei' },
+        ],
+      },
+      {
+        heading: 'Festplatten', icon: 'mdi:harddisk', badges: [
+          { entity: 'sensor.mediacenter22_disk_1_temperature', icon: 'mdi:harddisk', ok_below: 45, warning_above: 45, name: 'Disk 1' },
+          { entity: 'sensor.mediacenter22_disk_2_temperature', icon: 'mdi:harddisk', ok_below: 45, warning_above: 45, name: 'Disk 2' },
+          { entity: 'sensor.mediacenter22_disk_3_temperature', icon: 'mdi:harddisk', ok_below: 45, warning_above: 45, name: 'Disk 3' },
+          { entity: 'sensor.mediacenter22_disk_4_temperature', icon: 'mdi:harddisk', ok_below: 45, warning_above: 45, name: 'Disk 4' },
+        ],
+      },
+    ],
     tiles: [
       { name: 'MediaCenter22', entity: 'sensor.mediacenter22_status', icon: 'mdi:power', span: 2, tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_status' } },
-      { name: 'CPU', entity: 'sensor.mediacenter22_cpu', icon: 'mdi:cpu-64-bit', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_cpu' } },
-      { name: 'CPU Temperatur', entity: 'sensor.mediacenter22_temperature', icon: 'mdi:thermometer', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_temperature' } },
-      { name: 'Netzwerk Download', entity: 'sensor.mediacenter22_network_download', icon: 'mdi:download-network', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_network_download' } },
-      { name: 'Netzwerk Upload', entity: 'sensor.mediacenter22_network_upload', icon: 'mdi:upload-network', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_network_upload' } },
-      { name: 'RAM Nutzung', entity: 'sensor.mediacenter22_ram_usage', icon: 'mdi:memory', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_ram_usage' } },
-      { name: 'RAM Frei', entity: 'sensor.mediacenter22_ram_free', icon: 'mdi:database', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_ram_free' } },
-      { name: 'Speicher Nutzung', entity: 'sensor.mediacenter22_storage_usage', icon: 'mdi:harddisk', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_storage_usage' } },
-      { name: 'Speicher Frei', entity: 'sensor.mediacenter22_storage_free', icon: 'mdi:database-outline', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_storage_free' } },
-      { name: 'Lüfter 1', entity: 'sensor.mediacenter22_fan_1', icon: 'mdi:fan', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_fan_1' } },
-      { name: 'Lüfter 2', entity: 'sensor.mediacenter22_fan_2', icon: 'mdi:fan', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_fan_2' } },
-      { name: 'Festplatte 1', entity: 'sensor.mediacenter22_disk_1_temperature', icon: 'mdi:harddisk', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_disk_1_temperature' } },
-      { name: 'Festplatte 2', entity: 'sensor.mediacenter22_disk_2_temperature', icon: 'mdi:harddisk', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_disk_2_temperature' } },
-      { name: 'Festplatte 3', entity: 'sensor.mediacenter22_disk_3_temperature', icon: 'mdi:harddisk', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_disk_3_temperature' } },
-      { name: 'Festplatte 4', entity: 'sensor.mediacenter22_disk_4_temperature', icon: 'mdi:harddisk', tap_action: { action: 'more-info', entity: 'sensor.mediacenter22_disk_4_temperature' } },
       { name: 'Download', entity: 'sensor.fritzbox_download_speed', icon: 'mdi:download-network', tap_action: { action: 'more-info', entity: 'sensor.fritzbox_download_speed' } },
       { name: 'Upload', entity: 'sensor.fritzbox_upload_speed', icon: 'mdi:upload-network', tap_action: { action: 'more-info', entity: 'sensor.fritzbox_upload_speed' } },
       { name: 'Empfangen', entity: 'sensor.fritzbox_received', icon: 'mdi:download', tap_action: { action: 'more-info', entity: 'sensor.fritzbox_received' } },
@@ -1001,6 +1107,7 @@ const DEFAULT_PAGES = [
       { name: 'Firmware', entity: 'sensor.fritzbox_firmware', icon: 'mdi:router-wireless-settings', span: 2, tap_action: { action: 'more-info', entity: 'sensor.fritzbox_firmware' } },
       { name: 'Paperless Eingang', entity: 'sensor.paperless_inbox', icon: 'mdi:inbox-arrow-down', span: 2, tap_action: { action: 'more-info', entity: 'sensor.paperless_inbox' } },
       { name: 'Paperless Dokumente', entity: 'sensor.paperless_documents', icon: 'mdi:file-document', span: 2, tap_action: { action: 'more-info', entity: 'sensor.paperless_documents' } },
+      { name: 'Jellyseerr', entity: 'binary_sensor.jellyseer_192_168_178_22_5055', icon: 'phu:jellyseerr', tap_action: { action: 'url', url_path: 'http://192.168.178.22:5055' } },
       { name: 'Immich Fotos', entity: 'sensor.immich_photos', icon: 'mdi:camera', tap_action: { action: 'more-info', entity: 'sensor.immich_photos' } },
       { name: 'Immich Videos', entity: 'sensor.immich_videos', icon: 'mdi:video', tap_action: { action: 'more-info', entity: 'sensor.immich_videos' } },
       { name: 'Immich Speicher', entity: 'sensor.immich_storage', icon: 'mdi:harddisk', span: 2, tap_action: { action: 'more-info', entity: 'sensor.immich_storage' } },

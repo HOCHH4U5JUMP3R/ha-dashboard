@@ -485,6 +485,96 @@ views:
             subtitle: MediaCenter22, Fritz!Box und Dienste
             icon: mdi:server-network
             rooms: [office]
+            server:
+              name: MediaCenter22
+              icon: mdi:nas
+              entity: binary_sensor.192_168_178_22
+              tap_action:
+                action: more-info
+                entity: binary_sensor.192_168_178_22
+            server_status_sections:
+              - heading: CPU
+                icon: mdi:nas
+                badges:
+                  - entity: sensor.192_168_178_22_cpu_auslastung
+                    icon: phu:intel-cpu
+                    ok_below: 50
+                    warning_above: 50
+                    name: CPU Auslastung
+                  - entity: sensor.192_168_178_22_k10temp_0_temperatur
+                    icon: mdi:thermometer
+                    ok_below: 75
+                    critical_above: 74
+                    name: CPU Temperatur
+              - heading: Lüfter
+                icon: mdi:fan
+                badges:
+                  - entity: sensor.mediacenter22_fan_1
+                    icon: mdi:fan
+                    color: blue
+                    name: Lüfter 1
+                  - entity: sensor.mediacenter22_fan_2
+                    icon: mdi:fan
+                    color: blue
+                    name: Lüfter 2
+              - heading: Netzwerk
+                icon: mdi:network
+                badges:
+                  - entity: sensor.mediacenter22_network_download
+                    icon: mdi:download-network
+                    color: blue
+                    name: Download
+                  - entity: sensor.mediacenter22_network_upload
+                    icon: mdi:upload-network
+                    color: blue
+                    name: Upload
+              - heading: RAM
+                icon: mdi:memory
+                badges:
+                  - entity: sensor.mediacenter22_ram_usage
+                    icon: mdi:memory
+                    ok_below: 50
+                    warning_above: 50
+                    name: RAM Nutzung
+                  - entity: sensor.mediacenter22_ram_free
+                    icon: mdi:database
+                    color: green
+                    name: RAM Frei
+              - heading: Speicher
+                icon: mdi:harddisk
+                badges:
+                  - entity: sensor.mediacenter22_storage_usage
+                    icon: mdi:harddisk
+                    ok_below: 70
+                    warning_above: 70
+                    name: Speicher Nutzung
+                  - entity: sensor.mediacenter22_storage_free
+                    icon: mdi:database-outline
+                    color: yellow
+                    name: Speicher Frei
+              - heading: Festplatten
+                icon: mdi:harddisk
+                badges:
+                  - entity: sensor.mediacenter22_disk_1_temperature
+                    icon: mdi:harddisk
+                    ok_below: 45
+                    warning_above: 45
+                    name: Disk 1
+                  - entity: sensor.mediacenter22_disk_2_temperature
+                    icon: mdi:harddisk
+                    ok_below: 45
+                    warning_above: 45
+                    name: Disk 2
+                  - entity: sensor.mediacenter22_disk_3_temperature
+                    icon: mdi:harddisk
+                    ok_below: 45
+                    warning_above: 45
+                    name: Disk 3
+                  - entity: sensor.mediacenter22_disk_4_temperature
+                    icon: mdi:harddisk
+                    ok_below: 45
+                    warning_above: 45
+                    name: Disk 4
             tiles:
               - name: MediaCenter22
                 entity: sensor.mediacenter22_status
@@ -493,48 +583,6 @@ views:
                 tap_action:
                   action: more-info
                   entity: sensor.mediacenter22_status
-              - name: CPU
-                entity: sensor.mediacenter22_cpu
-                icon: mdi:cpu-64-bit
-              - name: CPU Temperatur
-                entity: sensor.mediacenter22_temperature
-                icon: mdi:thermometer
-              - name: Netzwerk Download
-                entity: sensor.mediacenter22_network_download
-                icon: mdi:download-network
-              - name: Netzwerk Upload
-                entity: sensor.mediacenter22_network_upload
-                icon: mdi:upload-network
-              - name: RAM Nutzung
-                entity: sensor.mediacenter22_ram_usage
-                icon: mdi:memory
-              - name: RAM Frei
-                entity: sensor.mediacenter22_ram_free
-                icon: mdi:database
-              - name: Speicher Nutzung
-                entity: sensor.mediacenter22_storage_usage
-                icon: mdi:harddisk
-              - name: Speicher Frei
-                entity: sensor.mediacenter22_storage_free
-                icon: mdi:database-outline
-              - name: Lüfter 1
-                entity: sensor.mediacenter22_fan_1
-                icon: mdi:fan
-              - name: Lüfter 2
-                entity: sensor.mediacenter22_fan_2
-                icon: mdi:fan
-              - name: Festplatte 1
-                entity: sensor.mediacenter22_disk_1_temperature
-                icon: mdi:harddisk
-              - name: Festplatte 2
-                entity: sensor.mediacenter22_disk_2_temperature
-                icon: mdi:harddisk
-              - name: Festplatte 3
-                entity: sensor.mediacenter22_disk_3_temperature
-                icon: mdi:harddisk
-              - name: Festplatte 4
-                entity: sensor.mediacenter22_disk_4_temperature
-                icon: mdi:harddisk
               - name: Download
                 entity: sensor.fritzbox_download_speed
                 icon: mdi:download-network
@@ -559,6 +607,12 @@ views:
                 entity: sensor.paperless_documents
                 icon: mdi:file-document
                 span: 2
+              - name: Jellyseerr
+                entity: binary_sensor.jellyseer_192_168_178_22_5055
+                icon: phu:jellyseerr
+                tap_action:
+                  action: url
+                  url_path: http://192.168.178.22:5055
               - name: Immich Fotos
                 entity: sensor.immich_photos
                 icon: mdi:camera

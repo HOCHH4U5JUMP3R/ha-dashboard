@@ -169,7 +169,9 @@ room_overview_top_tabs:
       entity: weather.home
 ```
 
-Auf Funktionsseiten wie Klima, Lichter, Sicherheit, Medien oder Server bleibt die linke Statusspalte erhalten; nur die rechte Gauge-Leiste wird ausgeblendet. Der Inhalt nutzt dadurch die zusammengelegte Mittel-/Rechtsfläche: Klima zeigt oben zwei halbbreite 7-Tage-Verläufe, darunter Istwerte und Heizungssteuerung; Lichter zeigt alle Licht-Entities mit AN/AUS und Helligkeit; Sicherheit bereitet Kamerafeed sowie Tür-/Fenstersensoren vor; Medien bündelt Xbox, PlayStation und Apple TV; Server bildet den MediaCenter-/Fritz!Box-/Dienstestatus im breiten Kachelraster ab.
+Auf Funktionsseiten wie Klima, Lichter, Sicherheit, Medien oder Server bleibt die linke Statusspalte erhalten; nur die rechte Gauge-Leiste wird ausgeblendet. Der Inhalt nutzt dadurch die zusammengelegte Mittel-/Rechtsfläche: Klima zeigt oben zwei halbbreite 7-Tage-Verläufe, darunter Istwerte und Heizungssteuerung; Lichter zeigt alle Licht-Entities mit AN/AUS und Helligkeit; Sicherheit bereitet Kamerafeed sowie Tür-/Fenstersensoren vor; Medien bündelt Xbox, PlayStation und Apple TV; Server bildet den Fritz!Box-/Paperless-/Immich-/Jellyfin-/SABnzbd-/Medi-arr-Dienstestatus im kompakten Kachelraster ab.
+
+Nur auf dem Server-Reiter kann die linke Statusspalte mit `server_status_sections` überschrieben werden. Das ist für Hardwarewerte wie CPU, Lüfter, Netzwerk, RAM, Speicher und Festplatten gedacht; die restlichen Reiter verwenden weiterhin die normale Statusspalte.
 
 Wenn du für den Server-Reiter eigene Mushroom- oder andere Lovelace-Karten bauen möchtest, kannst du innerhalb einer Seite statt `tiles` auch `cards` verwenden. Diese Einträge werden als echte Home-Assistant-Karten gerendert und können mit normalem Lovelace-/Mushroom-YAML befüllt werden; Platzhalter wie `{prefix}` funktionieren weiterhin:
 
@@ -178,6 +180,18 @@ pages:
   - id: server
     label: Server
     rooms: [office]
+    server_status_sections:
+      - heading: CPU
+        icon: mdi:nas
+        badges:
+          - entity: sensor.192_168_178_22_cpu_auslastung
+            icon: phu:intel-cpu
+            ok_below: 50
+            warning_above: 50
+          - entity: sensor.192_168_178_22_k10temp_0_temperatur
+            icon: mdi:thermometer
+            ok_below: 75
+            critical_above: 74
     cards:
       - type: custom:mushroom-template-card
         primary: MediaCenter22
