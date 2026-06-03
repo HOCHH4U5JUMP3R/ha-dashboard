@@ -169,7 +169,7 @@ room_overview_top_tabs:
       entity: weather.home
 ```
 
-Auf Funktionsseiten wie Klima, Lichter oder Server wird rechts keine wiederholte Gauge-Leiste mehr angezeigt. Stattdessen rendert die rechte Seite Gerätesteuerungen aus den Tiles der aktiven Seite; Climate- und Light-Entities erhalten automatisch passende Minus/AN-AUS/Plus-Controls.
+Auf Funktionsseiten wie Klima, Lichter, Sicherheit, Medien oder Server werden linke Statusspalte und rechte Gauge-Leiste ausgeblendet. Der Inhalt nutzt stattdessen die volle Dashboard-Breite: Klima zeigt oben zwei halbbreite 7-Tage-Verläufe, darunter Istwerte und Heizungssteuerung; Lichter zeigt alle Licht-Entities mit AN/AUS und Helligkeit; Sicherheit bereitet Kamerafeed sowie Tür-/Fenstersensoren vor; Medien bündelt Xbox, PlayStation und Apple TV; Server bildet den MediaCenter-/Fritz!Box-/Dienstestatus im breiten Kachelraster ab.
 
 Untere Reiter können global oder pro Raum eingeschränkt und erweitert werden. Beispiel: Server nur im Büro anzeigen und im Schlafzimmer Medien ausblenden:
 
@@ -188,7 +188,7 @@ rooms:
   - id: bedroom
     disabled_pages: [media]
   - id: office
-    enabled_pages: [rooms, overview, climate, lights, maintenance, systems, server]
+    enabled_pages: [rooms, overview, climate, lights, security, media, maintenance, systems, server]
 ```
 
 
@@ -313,7 +313,7 @@ pages:
   - id: lights
     label: Lichter
     title: LICHTER
-    subtitle: Raumstimmung
+    subtitle: Alle Leuchten im Raum
     icon: mdi:lightbulb-on-outline
     tiles:
       - name: Alle Lichter
@@ -322,14 +322,12 @@ pages:
         tap_action:
           action: toggle
           entity: light.living_room_all
-      - name: Kinolicht
-        icon: mdi:movie-open
-        label: Szene starten
+      - name: Akzentlicht
+        entity: light.living_room_accent
+        icon: mdi:led-strip-variant
         tap_action:
-          action: call-service
-          service: scene.turn_on
-          target:
-            entity_id: scene.living_room_movie
+          action: toggle
+          entity: light.living_room_accent
 ```
 
 ## Bilder

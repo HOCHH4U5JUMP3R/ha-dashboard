@@ -219,7 +219,7 @@ views:
           - id: climate
             label: Klima
             title: KLIMA
-            subtitle: Heizung und Luft
+            subtitle: 7 Tage Verlauf und Heizung
             icon: mdi:heat-wave
             tiles:
               - name: Heizung
@@ -228,34 +228,10 @@ views:
                 tap_action:
                   action: more-info
                   entity: climate.living_room
-              - name: Heizung Boost
-                icon: mdi:fire
-                label: 22 °C setzen
-                tap_action:
-                  action: call-service
-                  service: climate.set_temperature
-                  target:
-                    entity_id: climate.living_room
-                  data:
-                    temperature: 22
-              - name: Komfortszene
-                icon: mdi:home-thermometer
-                label: Szene starten
-                tap_action:
-                  action: call-service
-                  service: scene.turn_on
-                  target:
-                    entity_id: scene.living_room_comfort
-              - name: Thermostatdetails
-                entity: sensor.living_room_temperature
-                icon: mdi:thermometer
-                tap_action:
-                  action: more-info
-                  entity: sensor.living_room_temperature
           - id: lights
             label: Lichter
             title: LICHTER
-            subtitle: Raumstimmung
+            subtitle: Alle Leuchten im Raum
             icon: mdi:lightbulb-on-outline
             tiles:
               - name: Alle Lichter
@@ -276,80 +252,74 @@ views:
                 tap_action:
                   action: toggle
                   entity: light.ceiling_spots
-              - name: Kinolicht
-                icon: mdi:movie-open
-                label: Szene starten
+              - name: Akzentlicht
+                entity: light.living_room_accent
+                icon: mdi:led-strip-variant
                 tap_action:
-                  action: call-service
-                  service: scene.turn_on
-                  target:
-                    entity_id: scene.living_room_movie
+                  action: toggle
+                  entity: light.living_room_accent
           - id: security
             label: Sicherheit
             title: SICHERHEIT
-            subtitle: Schutz und Kameras
+            subtitle: Kamerafeed, Tür und Fenster
             icon: mdi:shield-home-outline
             tiles:
+              - name: Kamerafeed
+                entity: camera.front_door
+                icon: mdi:cctv
+                tap_action:
+                  action: more-info
+                  entity: camera.front_door
+              - name: Türsensor
+                entity: binary_sensor.living_room_door
+                icon: mdi:door
+                tap_action:
+                  action: more-info
+                  entity: binary_sensor.living_room_door
+              - name: Fenstersensor
+                entity: binary_sensor.living_room_window
+                icon: mdi:window-closed-variant
+                tap_action:
+                  action: more-info
+                  entity: binary_sensor.living_room_window
               - name: Alarm
                 entity: alarm_control_panel.home_alarm
                 icon: mdi:shield-lock
                 tap_action:
                   action: more-info
                   entity: alarm_control_panel.home_alarm
-              - name: Kamera Eingang
-                entity: camera.front_door
-                icon: mdi:cctv
-                tap_action:
-                  action: more-info
-                  entity: camera.front_door
-              - name: Haustür verriegeln
-                entity: lock.front_door
-                icon: mdi:lock
-                tap_action:
-                  action: call-service
-                  service: lock.lock
-                  target:
-                    entity_id: lock.front_door
-              - name: Kameras öffnen
-                icon: mdi:video-box
-                label: Navigation
-                tap_action:
-                  action: navigate
-                  navigation_path: /lovelace/security
           - id: media
             label: Medien
             title: MEDIEN
-            subtitle: Musik und TV
+            subtitle: Xbox, PlayStation und Apple TV
             icon: mdi:play-box-outline
             tiles:
-              - name: TV
-                entity: media_player.living_room_tv
-                icon: mdi:television
+              - name: Xbox
+                entity: media_player.living_room_xbox
+                icon: mdi:microsoft-xbox
                 tap_action:
                   action: toggle
-                  entity: media_player.living_room_tv
-              - name: Lautsprecher
-                entity: media_player.living_room_speaker
-                icon: mdi:speaker
+                  entity: media_player.living_room_xbox
+              - name: PlayStation
+                entity: media_player.living_room_playstation
+                icon: mdi:sony-playstation
                 tap_action:
-                  action: more-info
-                  entity: media_player.living_room_speaker
+                  action: toggle
+                  entity: media_player.living_room_playstation
+              - name: Apple TV
+                entity: media_player.living_room_apple_tv
+                icon: mdi:apple
+                tap_action:
+                  action: toggle
+                  entity: media_player.living_room_apple_tv
               - name: Play/Pause
                 icon: mdi:play-pause
-                label: Lautsprecher
+                label: Apple TV
                 tap_action:
                   action: call-service
                   service: media_player.media_play_pause
                   target:
-                    entity_id: media_player.living_room_speaker
-              - name: Kinoszene
-                icon: mdi:movie
-                label: Lichter + Medien
-                tap_action:
-                  action: call-service
-                  service: scene.turn_on
-                  target:
-                    entity_id: scene.living_room_movie
+                    entity_id: media_player.living_room_apple_tv
           - id: maintenance
             label: Wartung
             title: WARTUNG
