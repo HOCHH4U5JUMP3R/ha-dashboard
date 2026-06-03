@@ -90,15 +90,17 @@ views:
               entity: sensor.starman_speed
         gauges:
           - name: TEMP
+            icon: mdi:thermometer
             entity: sensor.living_room_temperature
             unit: °C
             max: 30
             color: '#aeb5e9'
-            label: Angenehm
+            label_mode: temperature_comfort
             tap_action:
               action: more-info
               entity: sensor.living_room_temperature
           - name: FEUCHTE
+            icon: mdi:water-percent
             entity: sensor.living_room_humidity
             unit: '%'
             max: 100
@@ -108,6 +110,7 @@ views:
               action: more-info
               entity: sensor.living_room_humidity
           - name: HEIZUNG
+            icon: mdi:radiator
             entity: climate.living_room
             value_entity: sensor.living_room_target_temperature
             unit: °C
@@ -118,6 +121,7 @@ views:
               action: more-info
               entity: climate.living_room
           - name: ALLE LICHTER
+            icon: mdi:lightbulb-group
             entity: light.living_room_all
             value_entity: sensor.living_room_light_level
             unit: '%'
@@ -128,6 +132,7 @@ views:
               action: toggle
               entity: light.living_room_all
           - name: STEHLAMPE
+            icon: mdi:floor-lamp
             entity: light.floor_lamp
             value_entity: sensor.floor_lamp_brightness
             unit: '%'
@@ -138,6 +143,7 @@ views:
               action: toggle
               entity: light.floor_lamp
           - name: DECKENSPOTS
+            icon: mdi:ceiling-light-multiple
             entity: light.ceiling_spots
             value_entity: sensor.ceiling_spots_brightness
             unit: '%'

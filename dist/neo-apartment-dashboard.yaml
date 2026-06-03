@@ -162,6 +162,7 @@ views:
               entity: sensor.starman_speed
         gauges:
           - name: TEMP
+            icon: mdi:thermometer
             entity: sensor.{prefix}_temperature
             unit: °C
             max: 30
@@ -171,6 +172,7 @@ views:
               action: more-info
               entity: sensor.{prefix}_temperature
           - name: FEUCHTE
+            icon: mdi:water-percent
             entity: sensor.{prefix}_humidity
             unit: '%'
             max: 100
@@ -180,6 +182,7 @@ views:
               action: more-info
               entity: sensor.{prefix}_humidity
           - name: HEIZUNG
+            icon: mdi:radiator
             entity: climate.{prefix}
             value_attribute: temperature
             unit: °C
@@ -210,6 +213,7 @@ views:
               action: more-info
               entity: climate.{prefix}
           - name: ALLE LICHTER
+            icon: mdi:lightbulb-group
             entity: light.{prefix}_all
             value_entity: sensor.{prefix}_light_level
             unit: '%'
@@ -220,6 +224,7 @@ views:
               action: toggle
               entity: light.{prefix}_all
           - name: STEHLAMPE
+            icon: mdi:floor-lamp
             entity: light.{prefix}_main
             value_entity: sensor.{prefix}_main_light_level
             unit: '%'
@@ -230,6 +235,7 @@ views:
               action: toggle
               entity: light.{prefix}_main
           - name: DECKENSPOTS
+            icon: mdi:ceiling-light-multiple
             entity: light.{prefix}_ceiling
             value_entity: sensor.{prefix}_ceiling_light_level
             unit: '%'
