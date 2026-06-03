@@ -223,7 +223,7 @@ class HaNeoDashboard extends HTMLElement {
     return `
       <div class="gauge-card" role="button" tabindex="0" data-action='${jsonAttr(actionFor(resolvedGauge))}'>
         <span class="gauge-ring" style="--gauge-color:${escapeAttr(resolvedGauge.color || '#2c9cff')};--gauge-deg:${degrees}deg">
-          <span class="gauge-name">${escapeHtml(resolvedGauge.name)}</span>
+          <span class="gauge-name"><ha-icon icon="${escapeAttr(gaugeIcon(resolvedGauge))}"></ha-icon></span>
           <span class="gauge-value">${this.formatNumber(value)}</span>
           <span class="gauge-unit">${escapeHtml(resolvedGauge.unit || this.stateUnit(resolvedGauge.value_entity || resolvedGauge.entity) || '')}</span>
         </span>
@@ -446,7 +446,7 @@ class HaNeoDashboard extends HTMLElement {
       }
       .left-panel { grid-area: left; }
       .content-panel { grid-area: content; display: grid; align-content: start; justify-items: center; min-width: 0; }
-      .right-panel { grid-area: right; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; }
+      .right-panel { grid-area: right; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; padding-right: 18px; }
       .tabs { display: flex; margin-bottom: 30px; }
       .tab { min-width: 104px; min-height: 48px; padding: 0 16px; border: 1px solid rgba(170, 180, 230, .35); background: rgba(16, 19, 45, .55); border-radius: 6px; font-size: 12px; font-weight: 800; }
       .tab-active { background: rgba(255, 255, 255, .96); color: #101225; }
@@ -490,7 +490,8 @@ class HaNeoDashboard extends HTMLElement {
       .gauge-ring { position: relative; display: grid; place-items: center; width: 112px; height: 112px; border-radius: 50%; background: conic-gradient(from 210deg, var(--gauge-color) var(--gauge-deg), rgba(255, 255, 255, .06) var(--gauge-deg) 300deg, transparent 300deg 360deg); }
       .gauge-ring:after { content: ''; position: absolute; inset: 7px; border-radius: 50%; background: #111530; box-shadow: inset 0 0 24px rgba(0, 0, 0, .35); }
       .gauge-name, .gauge-value, .gauge-unit { position: relative; z-index: 1; text-align: center; }
-      .gauge-name { align-self: end; color: var(--neo-muted); font-size: 9px; font-weight: 700; }
+      .gauge-name { align-self: end; color: var(--neo-muted); }
+      .gauge-name ha-icon { width: 18px; height: 18px; }
       .gauge-value { font-size: 26px; line-height: 1; }
       .gauge-unit { align-self: start; font-size: 16px; font-weight: 700; }
       .gauge-label { color: var(--neo-muted); font-size: 11px; }
@@ -528,7 +529,7 @@ class HaNeoDashboard extends HTMLElement {
         .room-image-wrap { width: min(520px, 92%); }
         .room-image { min-height: 230px; max-height: 330px; }
         .quick-chips { margin-top: 24px; padding: 18px 48px; }
-        .right-panel { gap: 10px; }
+        .right-panel { gap: 10px; padding-right: 8px; }
         .gauge-card { min-height: 134px; padding: 8px 6px; }
         .gauge-ring { width: 96px; height: 96px; }
         .gauge-value { font-size: 23px; }
@@ -543,7 +544,7 @@ class HaNeoDashboard extends HTMLElement {
       @media (max-width: 1000px) {
         ha-card { min-height: 100dvh; height: auto; }
         .dashboard-shell { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'content' 'right' 'left' 'nav'; padding: 24px 16px 0; min-height: 100dvh; }
-        .right-panel { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+        .right-panel { grid-template-columns: repeat(2, minmax(140px, 1fr)); padding-right: 0; }
         .page-grid, .rooms-grid { grid-template-columns: 1fr; }
         .room-title { margin-bottom: 28px; }
         .bottom-nav { overflow-x: auto; justify-self: stretch; }
@@ -662,18 +663,18 @@ const DEFAULT_CONFIG = {
     { name: 'Starman', entity: 'sensor.starman_speed', max: 5000, unit: 'km/h', tap_action: { action: 'more-info', entity: 'sensor.starman_speed' } },
   ],
   gauges: [
-    { name: 'TEMP', entity: 'sensor.living_room_temperature', unit: '°C', max: 30, color: '#aeb5e9', label_mode: 'temperature_comfort', tap_action: { action: 'more-info', entity: 'sensor.living_room_temperature' } },
-    { name: 'FEUCHTE', entity: 'sensor.living_room_humidity', unit: '%', max: 100, color: '#f29a37', label: 'Trocken', tap_action: { action: 'more-info', entity: 'sensor.living_room_humidity' } },
-    { name: 'HEIZUNG', entity: 'climate.living_room', value_attribute: 'temperature', unit: '°C', max: 30, color: '#2c9cff', controls: heatingControls('climate.living_room'), tap_action: { action: 'more-info', entity: 'climate.living_room' } },
-    { name: 'ALLE LICHTER', entity: 'light.living_room_all', value_entity: 'sensor.living_room_light_level', unit: '%', max: 100, color: '#2c9cff', controls: ['OFF', 'DIM'], tap_action: { action: 'toggle', entity: 'light.living_room_all' } },
-    { name: 'STEHLAMPE', entity: 'light.floor_lamp', value_entity: 'sensor.floor_lamp_brightness', unit: '%', max: 100, color: '#2c9cff', controls: ['OFF', 'DIM'], tap_action: { action: 'toggle', entity: 'light.floor_lamp' } },
-    { name: 'DECKENSPOTS', entity: 'light.ceiling_spots', value_entity: 'sensor.ceiling_spots_brightness', unit: '%', max: 100, color: '#2c9cff', controls: ['ON', ''], tap_action: { action: 'toggle', entity: 'light.ceiling_spots' } },
+    { name: 'TEMP', icon: 'mdi:thermometer', entity: 'sensor.living_room_temperature', unit: '°C', max: 30, color: '#aeb5e9', label_mode: 'temperature_comfort', tap_action: { action: 'more-info', entity: 'sensor.living_room_temperature' } },
+    { name: 'FEUCHTE', icon: 'mdi:water-percent', entity: 'sensor.living_room_humidity', unit: '%', max: 100, color: '#f29a37', label: 'Trocken', tap_action: { action: 'more-info', entity: 'sensor.living_room_humidity' } },
+    { name: 'HEIZUNG', icon: 'mdi:radiator', entity: 'climate.living_room', value_attribute: 'temperature', unit: '°C', max: 30, color: '#2c9cff', controls: heatingControls('climate.living_room'), tap_action: { action: 'more-info', entity: 'climate.living_room' } },
+    { name: 'ALLE LICHTER', icon: 'mdi:lightbulb-group', entity: 'light.living_room_all', value_entity: 'sensor.living_room_light_level', unit: '%', max: 100, color: '#2c9cff', controls: ['OFF', 'DIM'], tap_action: { action: 'toggle', entity: 'light.living_room_all' } },
+    { name: 'STEHLAMPE', icon: 'mdi:floor-lamp', entity: 'light.floor_lamp', value_entity: 'sensor.floor_lamp_brightness', unit: '%', max: 100, color: '#2c9cff', controls: ['OFF', 'DIM'], tap_action: { action: 'toggle', entity: 'light.floor_lamp' } },
+    { name: 'DECKENSPOTS', icon: 'mdi:ceiling-light-multiple', entity: 'light.ceiling_spots', value_entity: 'sensor.ceiling_spots_brightness', unit: '%', max: 100, color: '#2c9cff', controls: ['ON', ''], tap_action: { action: 'toggle', entity: 'light.ceiling_spots' } },
   ],
   room_overview_gauges: [
-    { name: 'RÄUME', entity: 'sensor.home_occupied_rooms', unit: '', max: 7, color: '#aeb5e9', label: 'Wohnung', tap_action: { action: 'none' } },
-    { name: 'TEMP', entity: 'sensor.home_average_temperature', unit: '°C', max: 30, color: '#2c9cff', label: 'Ø Zuhause', tap_action: { action: 'more-info', entity: 'sensor.home_average_temperature' } },
-    { name: 'FEUCHTE', entity: 'sensor.home_average_humidity', unit: '%', max: 100, color: '#f29a37', label: 'Ø Zuhause', tap_action: { action: 'more-info', entity: 'sensor.home_average_humidity' } },
-    { name: 'LICHT', entity: 'sensor.home_lights_on', unit: '', max: 20, color: '#2c9cff', label: 'Aktiv', tap_action: { action: 'more-info', entity: 'sensor.home_lights_on' } },
+    { name: 'RÄUME', icon: 'mdi:floor-plan', entity: 'sensor.home_occupied_rooms', unit: '', max: 7, color: '#aeb5e9', label: 'Wohnung', tap_action: { action: 'none' } },
+    { name: 'TEMP', icon: 'mdi:thermometer', entity: 'sensor.home_average_temperature', unit: '°C', max: 30, color: '#2c9cff', label: 'Ø Zuhause', tap_action: { action: 'more-info', entity: 'sensor.home_average_temperature' } },
+    { name: 'FEUCHTE', icon: 'mdi:water-percent', entity: 'sensor.home_average_humidity', unit: '%', max: 100, color: '#f29a37', label: 'Ø Zuhause', tap_action: { action: 'more-info', entity: 'sensor.home_average_humidity' } },
+    { name: 'LICHT', icon: 'mdi:lightbulb-group', entity: 'sensor.home_lights_on', unit: '', max: 20, color: '#2c9cff', label: 'Aktiv', tap_action: { action: 'more-info', entity: 'sensor.home_lights_on' } },
   ],
   rooms: DEFAULT_ROOMS,
   pages: DEFAULT_PAGES,
@@ -682,20 +683,46 @@ const DEFAULT_CONFIG = {
 
 
 
-function temperatureComfortLabel(value) {
-  if (value < 17) {
-    return 'zu kalt';
+
+function gaugeIcon(gauge) {
+  if (gauge?.icon) {
+    return gauge.icon;
   }
 
-  if (value < 19) {
+  const key = `${gauge?.name || ''} ${gauge?.entity || ''}`.toLowerCase();
+  if (key.includes('feuchte') || key.includes('humidity')) {
+    return 'mdi:water-percent';
+  }
+  if (key.includes('heizung') || key.includes('climate')) {
+    return 'mdi:radiator';
+  }
+  if (key.includes('licht') || key.includes('light')) {
+    return 'mdi:lightbulb-group';
+  }
+  if (key.includes('bewegung') || key.includes('motion')) {
+    return 'mdi:motion-sensor';
+  }
+  if (key.includes('räume') || key.includes('rooms')) {
+    return 'mdi:floor-plan';
+  }
+
+  return 'mdi:thermometer';
+}
+
+function temperatureComfortLabel(value) {
+  if (value < 15) {
+    return 'kalt';
+  }
+
+  if (value < 20) {
     return 'kühl';
   }
 
-  if (value < 23) {
+  if (value < 22) {
     return 'angenehm';
   }
 
-  if (value < 26) {
+  if (value < 25) {
     return 'warm';
   }
 
@@ -796,12 +823,12 @@ function buildRoomConfig(config, room) {
 
 function createRoomGauges(room) {
   return [
-    { name: 'TEMP', entity: room.temperature_entity, unit: '°C', max: 30, color: '#aeb5e9', label_mode: 'temperature_comfort', tap_action: { action: 'more-info', entity: room.temperature_entity } },
-    { name: 'FEUCHTE', entity: room.humidity_entity, unit: '%', max: 100, color: '#f29a37', label: 'Raumklima', tap_action: { action: 'more-info', entity: room.humidity_entity } },
-    { name: 'HEIZUNG', entity: room.climate_entity, value_attribute: 'temperature', unit: '°C', max: 30, color: '#2c9cff', controls: heatingControls(room.climate_entity), tap_action: { action: 'more-info', entity: room.climate_entity } },
-    { name: 'LICHT', entity: room.all_lights_entity, value_entity: room.light_level_entity, unit: '%', max: 100, color: '#2c9cff', controls: ['AUS', 'DIM'], tap_action: { action: 'toggle', entity: room.all_lights_entity } },
-    { name: 'HAUPTLICHT', entity: room.main_light_entity, value_entity: room.main_light_level_entity, unit: '%', max: 100, color: '#2c9cff', controls: ['AUS', 'AN'], tap_action: { action: 'toggle', entity: room.main_light_entity } },
-    { name: 'BEWEGUNG', entity: room.motion_entity, unit: '', max: 1, color: '#aeb5e9', label_entity: room.motion_entity, tap_action: { action: 'more-info', entity: room.motion_entity } },
+    { name: 'TEMP', icon: 'mdi:thermometer', entity: room.temperature_entity, unit: '°C', max: 30, color: '#aeb5e9', label_mode: 'temperature_comfort', tap_action: { action: 'more-info', entity: room.temperature_entity } },
+    { name: 'FEUCHTE', icon: 'mdi:water-percent', entity: room.humidity_entity, unit: '%', max: 100, color: '#f29a37', label: 'Raumklima', tap_action: { action: 'more-info', entity: room.humidity_entity } },
+    { name: 'HEIZUNG', icon: 'mdi:radiator', entity: room.climate_entity, value_attribute: 'temperature', unit: '°C', max: 30, color: '#2c9cff', controls: heatingControls(room.climate_entity), tap_action: { action: 'more-info', entity: room.climate_entity } },
+    { name: 'LICHT', icon: 'mdi:lightbulb-group', entity: room.all_lights_entity, value_entity: room.light_level_entity, unit: '%', max: 100, color: '#2c9cff', controls: ['AUS', 'DIM'], tap_action: { action: 'toggle', entity: room.all_lights_entity } },
+    { name: 'HAUPTLICHT', icon: 'mdi:floor-lamp', entity: room.main_light_entity, value_entity: room.main_light_level_entity, unit: '%', max: 100, color: '#2c9cff', controls: ['AUS', 'AN'], tap_action: { action: 'toggle', entity: room.main_light_entity } },
+    { name: 'BEWEGUNG', icon: 'mdi:motion-sensor', entity: room.motion_entity, unit: '', max: 1, color: '#aeb5e9', label_entity: room.motion_entity, tap_action: { action: 'more-info', entity: room.motion_entity } },
   ];
 }
 
