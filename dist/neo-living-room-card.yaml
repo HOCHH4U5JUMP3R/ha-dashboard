@@ -15,12 +15,37 @@ views:
         subtitle: Erdgeschoss
         background_image: /local/neo-dashboard/background.jpg
         image: /local/neo-dashboard/living-room.png
-        default_page: overview
+        default_page: home
         scene_label: SZENE
         scene_entity: scene.living_room_evening
         temperature_entity: sensor.living_room_temperature
         humidity_entity: sensor.living_room_humidity
         all_lights_entity: light.living_room_all
+        home_title: STARTSEITE
+        home_subtitle: Wohnung
+        # Startseiten-/Floorplan-Hintergrund aus deinem HACS-Asset-Pfad.
+        apartment_floorplan_image: /local/community/ha-dashboard-assets/home.svg
+        presence:
+          - name: Person 1
+            entity: person.person_1
+            icon: mdi:account
+          - name: Person 2
+            entity: person.person_2
+            icon: mdi:account-outline
+        floorplan_entities:
+          - name: Wohnzimmer Licht
+            entity: light.living_room_all
+            icon: mdi:lightbulb-group
+            x: 72
+            y: 36
+            tap_action:
+              action: toggle
+              entity: light.living_room_all
+          - name: Wohnzimmer Temperatur
+            entity: sensor.living_room_temperature
+            icon: mdi:thermometer
+            x: 70
+            y: 46
         top_tabs:
           - label: SYSTEM
             tap_action:
@@ -210,6 +235,12 @@ views:
               action: toggle
               entity: light.ceiling_spots
         pages:
+          - id: home
+            label: Startseite
+            title: STARTSEITE
+            subtitle: Wohnung
+            icon: mdi:home-outline
+            type: home
           - id: overview
             label: Übersicht
             title: WOHNZIMMER
@@ -258,6 +289,36 @@ views:
                 tap_action:
                   action: toggle
                   entity: light.living_room_accent
+          - id: power
+            label: Strom
+            title: STROM
+            subtitle: Verbrauch und Steckdosen
+            icon: mdi:flash-outline
+            tiles:
+              - name: Raumverbrauch
+                entity: sensor.living_room_power
+                icon: mdi:flash
+                tap_action:
+                  action: more-info
+                  entity: sensor.living_room_power
+              - name: Tagesverbrauch
+                entity: sensor.living_room_energy_today
+                icon: mdi:chart-bar
+                tap_action:
+                  action: more-info
+                  entity: sensor.living_room_energy_today
+              - name: TV Steckdose
+                entity: switch.living_room_tv
+                icon: mdi:power-socket-de
+                tap_action:
+                  action: toggle
+                  entity: switch.living_room_tv
+              - name: Konsole
+                entity: switch.living_room_console
+                icon: mdi:power-socket-de
+                tap_action:
+                  action: toggle
+                  entity: switch.living_room_console
           - id: security
             label: Sicherheit
             title: SICHERHEIT
@@ -288,43 +349,11 @@ views:
                 tap_action:
                   action: more-info
                   entity: alarm_control_panel.home_alarm
-          - id: media
-            label: Medien
-            title: MEDIEN
-            subtitle: Xbox, PlayStation und Apple TV
-            icon: mdi:play-box-outline
-            tiles:
-              - name: Xbox
-                entity: media_player.living_room_xbox
-                icon: mdi:microsoft-xbox
-                tap_action:
-                  action: toggle
-                  entity: media_player.living_room_xbox
-              - name: PlayStation
-                entity: media_player.living_room_playstation
-                icon: mdi:sony-playstation
-                tap_action:
-                  action: toggle
-                  entity: media_player.living_room_playstation
-              - name: Apple TV
-                entity: media_player.living_room_apple_tv
-                icon: mdi:apple
-                tap_action:
-                  action: toggle
-                  entity: media_player.living_room_apple_tv
-              - name: Play/Pause
-                icon: mdi:play-pause
-                label: Apple TV
-                tap_action:
-                  action: call-service
-                  service: media_player.media_play_pause
-                  target:
-                    entity_id: media_player.living_room_apple_tv
-          - id: maintenance
-            label: Wartung
-            title: WARTUNG
-            subtitle: Systemzustand
-            icon: mdi:router-wireless-settings
+          - id: system
+            label: System
+            title: SYSTEM
+            subtitle: Home Assistant und Dienste
+            icon: mdi:cog-outline
             tiles:
               - name: Backups
                 entity: sensor.backup_state
@@ -350,39 +379,9 @@ views:
                 tap_action:
                   action: call-service
                   service: homeassistant.restart
-          - id: presence
-            label: Anwesenheit
-            title: ANWESENHEIT
-            subtitle: Personen und Automationen
-            icon: mdi:map-marker-radius-outline
-            tiles:
-              - name: Person 1
-                entity: person.person_1
-                icon: mdi:account
-                tap_action:
-                  action: more-info
-                  entity: person.person_1
-              - name: Person 2
-                entity: person.person_2
-                icon: mdi:account-outline
-                tap_action:
-                  action: more-info
-                  entity: person.person_2
-              - name: Gastmodus
-                entity: input_boolean.guest_mode
-                icon: mdi:account-plus
-                tap_action:
-                  action: toggle
-                  entity: input_boolean.guest_mode
-              - name: Abwesenheitsmodus
-                entity: input_boolean.away_mode
-                icon: mdi:home-export-outline
-                tap_action:
-                  action: toggle
-                  entity: input_boolean.away_mode
-          - id: systems
-            label: System
-            title: SYSTEM
+          - id: system_tools
+            label: Tools
+            title: SYSTEM TOOLS
             subtitle: Infrastruktur
             icon: mdi:database-cog-outline
             tiles:

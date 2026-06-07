@@ -16,7 +16,7 @@ views:
         background_image: /local/neo-dashboard/background.jpg
         image: /local/neo-dashboard/living-room.png
         default_room: living_room
-        default_page: rooms
+        default_page: home
         rooms:
           - id: bedroom
             title: SCHLAFZIMMER
@@ -58,7 +58,7 @@ views:
             temperature_entity: sensor.office_temperature
             humidity_entity: sensor.office_humidity
             all_lights_entity: light.office_all
-            enabled_pages: [rooms, overview, climate, lights, security, media, maintenance, systems, server]
+            enabled_pages: [home, overview, climate, lights, power, security, system, server]
             socket_entities:
               - name: Drucker
                 entity: switch.office_printer
@@ -109,6 +109,67 @@ views:
             temperature_entity: sensor.basement_temperature
             humidity_entity: sensor.basement_humidity
             all_lights_entity: light.basement_all
+        home_title: STARTSEITE
+        home_subtitle: Wohnung
+        presence:
+          - name: Person 1
+            entity: person.person_1
+            icon: mdi:account
+          - name: Person 2
+            entity: person.person_2
+            icon: mdi:account-outline
+        # Startseiten-/Floorplan-Hintergrund aus deinem HACS-Asset-Pfad.
+        apartment_floorplan_image: /local/community/ha-dashboard-assets/home.svg
+        floorplan_rooms:
+          - label: Büro
+            room: office
+            x: 24
+            y: 30
+            width: 25
+            height: 34
+          - label: Küche
+            room: kitchen
+            x: 48
+            y: 30
+            width: 20
+            height: 34
+          - label: Wohnzimmer
+            room: living_room
+            x: 72
+            y: 34
+            width: 30
+            height: 42
+          - label: Badezimmer
+            room: bathroom
+            x: 35
+            y: 75
+            width: 20
+            height: 26
+          - label: Schlafzimmer
+            room: bedroom
+            x: 70
+            y: 73
+            width: 30
+            height: 34
+        floorplan_entities:
+          - name: Wohnzimmer Licht
+            entity: light.living_room_all
+            icon: mdi:lightbulb-group
+            x: 72
+            y: 36
+            tap_action:
+              action: toggle
+              entity: light.living_room_all
+          - name: Küche Temperatur
+            entity: sensor.kitchen_temperature
+            icon: mdi:thermometer
+            x: 48
+            y: 28
+          - name: Büro Bewegung
+            entity: binary_sensor.office_motion
+            icon: mdi:motion-sensor
+            x: 24
+            y: 30
         scene_label: SZENE
         scene_entity: scene.living_room_evening
         temperature_entity: sensor.living_room_temperature
@@ -303,12 +364,12 @@ views:
               action: toggle
               entity: light.{prefix}_ceiling
         pages:
-          - id: rooms
-            label: Räume
-            title: RAUMÜBERSICHT
+          - id: home
+            label: Startseite
+            title: STARTSEITE
             subtitle: Wohnung
-            icon: mdi:floor-plan
-            type: rooms
+            icon: mdi:home-outline
+            type: home
           - id: overview
             label: Übersicht
             title: WOHNZIMMER
@@ -357,6 +418,36 @@ views:
                 tap_action:
                   action: toggle
                   entity: light.{prefix}_accent
+          - id: power
+            label: Strom
+            title: STROM
+            subtitle: Verbrauch und Steckdosen
+            icon: mdi:flash-outline
+            tiles:
+              - name: Raumverbrauch
+                entity: sensor.{prefix}_power
+                icon: mdi:flash
+                tap_action:
+                  action: more-info
+                  entity: sensor.{prefix}_power
+              - name: Tagesverbrauch
+                entity: sensor.{prefix}_energy_today
+                icon: mdi:chart-bar
+                tap_action:
+                  action: more-info
+                  entity: sensor.{prefix}_energy_today
+              - name: Steckdose 1
+                entity: switch.{prefix}_socket_1
+                icon: mdi:power-socket-de
+                tap_action:
+                  action: toggle
+                  entity: switch.{prefix}_socket_1
+              - name: Steckdose 2
+                entity: switch.{prefix}_socket_2
+                icon: mdi:power-socket-de
+                tap_action:
+                  action: toggle
+                  entity: switch.{prefix}_socket_2
           - id: security
             label: Sicherheit
             title: SICHERHEIT
@@ -387,43 +478,11 @@ views:
                 tap_action:
                   action: more-info
                   entity: alarm_control_panel.home_alarm
-          - id: media
-            label: Medien
-            title: MEDIEN
-            subtitle: Xbox, PlayStation und Apple TV
-            icon: mdi:play-box-outline
-            tiles:
-              - name: Xbox
-                entity: media_player.{prefix}_xbox
-                icon: mdi:microsoft-xbox
-                tap_action:
-                  action: toggle
-                  entity: media_player.{prefix}_xbox
-              - name: PlayStation
-                entity: media_player.{prefix}_playstation
-                icon: mdi:sony-playstation
-                tap_action:
-                  action: toggle
-                  entity: media_player.{prefix}_playstation
-              - name: Apple TV
-                entity: media_player.{prefix}_apple_tv
-                icon: mdi:apple
-                tap_action:
-                  action: toggle
-                  entity: media_player.{prefix}_apple_tv
-              - name: Play/Pause
-                icon: mdi:play-pause
-                label: Apple TV
-                tap_action:
-                  action: call-service
-                  service: media_player.media_play_pause
-                  target:
-                    entity_id: media_player.{prefix}_apple_tv
-          - id: maintenance
-            label: Wartung
-            title: WARTUNG
-            subtitle: Systemzustand
-            icon: mdi:router-wireless-settings
+          - id: system
+            label: System
+            title: SYSTEM
+            subtitle: Home Assistant und Dienste
+            icon: mdi:cog-outline
             tiles:
               - name: Backups
                 entity: sensor.backup_state
@@ -449,36 +508,6 @@ views:
                 tap_action:
                   action: call-service
                   service: homeassistant.restart
-          - id: presence
-            label: Anwesenheit
-            title: ANWESENHEIT
-            subtitle: Personen und Automationen
-            icon: mdi:map-marker-radius-outline
-            tiles:
-              - name: Person 1
-                entity: person.person_1
-                icon: mdi:account
-                tap_action:
-                  action: more-info
-                  entity: person.person_1
-              - name: Person 2
-                entity: person.person_2
-                icon: mdi:account-outline
-                tap_action:
-                  action: more-info
-                  entity: person.person_2
-              - name: Gastmodus
-                entity: input_boolean.guest_mode
-                icon: mdi:account-plus
-                tap_action:
-                  action: toggle
-                  entity: input_boolean.guest_mode
-              - name: Abwesenheitsmodus
-                entity: input_boolean.away_mode
-                icon: mdi:home-export-outline
-                tap_action:
-                  action: toggle
-                  entity: input_boolean.away_mode
           - id: server
             label: Server
             title: SERVER
@@ -659,33 +688,3 @@ views:
                 entity: sensor.synology_rs1221_storage
                 icon: mdi:chart-areaspline
                 span: 4
-          - id: systems
-            label: System
-            title: SYSTEM
-            subtitle: Infrastruktur
-            icon: mdi:database-cog-outline
-            tiles:
-              - name: USV
-                entity: sensor.ups_battery
-                icon: mdi:battery-high
-                tap_action:
-                  action: more-info
-                  entity: sensor.ups_battery
-              - name: Router
-                entity: binary_sensor.router_status
-                icon: mdi:router-network
-                tap_action:
-                  action: more-info
-                  entity: binary_sensor.router_status
-              - name: Server
-                entity: sensor.server_status
-                icon: mdi:server
-                tap_action:
-                  action: more-info
-                  entity: sensor.server_status
-              - name: Protokolle
-                icon: mdi:text-box-search
-                label: Navigation
-                tap_action:
-                  action: navigate
-                  navigation_path: /config/logs
