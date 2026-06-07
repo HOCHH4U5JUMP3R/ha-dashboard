@@ -134,8 +134,10 @@ class HaNeoDashboard extends HTMLElement {
 
   renderFloorplanRoom(room) {
     const resolvedRoom = resolveRoomValue(room, this.activeRoom);
+    const style = floorplanElementStyle(resolvedRoom, { x: 50, y: 50, width: 16, height: 12 });
+
     return `
-      <button class="floorplan-room-hotspot" type="button" style="left:${Number(resolvedRoom.x) || 50}%;top:${Number(resolvedRoom.y) || 50}%;width:${Number(resolvedRoom.width) || 16}%;height:${Number(resolvedRoom.height) || 12}%" data-room="${escapeAttr(resolvedRoom.room || resolvedRoom.id || '')}" data-action='${jsonAttr(actionFor(resolvedRoom))}'>
+      <button class="floorplan-room-hotspot" type="button" style="${escapeAttr(style)}" data-room="${escapeAttr(resolvedRoom.room || resolvedRoom.id || '')}" data-action='${jsonAttr(actionFor(resolvedRoom))}'>
         <span>${escapeHtml(resolvedRoom.label || resolvedRoom.name || '')}</span>
       </button>
     `;
@@ -146,9 +148,12 @@ class HaNeoDashboard extends HTMLElement {
     const state = resolvedItem.entity ? this._hass.states[resolvedItem.entity] : undefined;
     const active = ['on', 'open', 'heat', 'cool', 'playing', 'home'].includes(state?.state);
     const label = resolvedItem.label || (state ? `${this.formatState(state)}${this.unitSuffix(state)}` : resolvedItem.name || '');
+    const style = floorplanElementStyle(resolvedItem, { x: 50, y: 50 }, {
+      '--floorplan-entity-icon-size': cssLength(resolvedItem.icon_size),
+    });
 
     return `
-      <button class="floorplan-entity ${active ? 'active' : ''}" type="button" style="left:${Number(resolvedItem.x) || 50}%;top:${Number(resolvedItem.y) || 50}%" data-action='${jsonAttr(actionFor(resolvedItem))}' title="${escapeAttr(resolvedItem.name || resolvedItem.entity || '')}">
+      <button class="floorplan-entity ${active ? 'active' : ''}" type="button" style="${escapeAttr(style)}" data-action='${jsonAttr(actionFor(resolvedItem))}' title="${escapeAttr(resolvedItem.name || resolvedItem.entity || '')}">
         <ha-icon icon="${escapeAttr(resolvedItem.icon || iconForDomain(resolvedItem.entity?.split('.')[0]))}"></ha-icon>
         ${label ? `<span>${escapeHtml(label)}</span>` : ''}
       </button>
@@ -948,9 +953,9 @@ class HaNeoDashboard extends HTMLElement {
       .floorplan-room-hotspot { position: absolute; transform: translate(-50%, -50%); border-radius: 18px; background: rgba(44, 156, 255, .06); border: 1px solid transparent; color: transparent; }
       .floorplan-room-hotspot:hover, .floorplan-room-hotspot:focus-visible { background: rgba(44, 156, 255, .16); border-color: rgba(44, 156, 255, .45); color: var(--neo-text); }
       .floorplan-room-hotspot span { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 12px; font-weight: 800; white-space: nowrap; }
-      .floorplan-entity { position: absolute; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 6px 9px; border-radius: 999px; background: rgba(13, 17, 43, .78); border: 1px solid rgba(169, 181, 232, .26); color: var(--neo-muted); box-shadow: 0 14px 26px rgba(0, 0, 0, .22); backdrop-filter: blur(8px); }
+      .floorplan-entity { position: absolute; transform: translate(-50%, -50%); display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px; padding: 6px 9px; border-radius: 999px; background: rgba(13, 17, 43, .78); border: 1px solid rgba(169, 181, 232, .26); color: var(--neo-muted); box-shadow: 0 14px 26px rgba(0, 0, 0, .22); backdrop-filter: blur(8px); box-sizing: border-box; }
       .floorplan-entity.active { color: var(--neo-blue); border-color: rgba(44, 156, 255, .65); box-shadow: 0 0 24px rgba(44, 156, 255, .22); }
-      .floorplan-entity ha-icon { width: 18px; height: 18px; }
+      .floorplan-entity ha-icon { width: var(--floorplan-entity-icon-size, 18px); height: var(--floorplan-entity-icon-size, 18px); flex: 0 0 auto; }
       .floorplan-entity span { font-size: 11px; font-weight: 800; }
       .page-grid, .rooms-grid { width: min(760px, 100%); display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 16px; }
       .page-grid-wide, .full-page-grid, .server-layout { width: min(820px, 100%); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
@@ -1238,11 +1243,11 @@ const DEFAULT_CONFIG = {
     { label: 'Schlafzimmer', room: 'bedroom', x: 10, y: 74, width: 30, height: 34 },
   ],
   floorplan_entities: [
-    { name: 'Wohnzimmer Licht', entity: 'light.living_room_all', icon: 'mdi:lightbulb-group', x: 72, y: 36, tap_action: { action: 'toggle', entity: 'light.living_room_all' } },
-    { name: 'Küche Temperatur', entity: 'sensor.kitchen_temperature', icon: 'mdi:thermometer', x: 48, y: 28 },
-    { name: 'Büro Bewegung', entity: 'binary_sensor.office_motion', icon: 'mdi:motion-sensor', x: 24, y: 30 },
-    { name: 'Haustür', entity: 'binary_sensor.living_room_door', icon: 'mdi:door', x: 59, y: 57 },
-    { name: 'Schlafzimmer Licht', entity: 'light.bedroom_all', icon: 'mdi:lightbulb-outline', x: 70, y: 73, tap_action: { action: 'toggle', entity: 'light.bedroom_all' } },
+    { name: 'Wohnzimmer Licht', entity: 'light.living_room_all', icon: 'mdi:lightbulb-group', x: 72, y: 36, width: 14, height: 7, tap_action: { action: 'toggle', entity: 'light.living_room_all' } },
+    { name: 'Küche Temperatur', entity: 'sensor.kitchen_temperature', icon: 'mdi:thermometer', x: 48, y: 28, width: 13, height: 7 },
+    { name: 'Büro Bewegung', entity: 'binary_sensor.office_motion', icon: 'mdi:motion-sensor', x: 24, y: 30, width: 12, height: 7 },
+    { name: 'Haustür', entity: 'binary_sensor.living_room_door', icon: 'mdi:door', x: 59, y: 57, width: 10, height: 7 },
+    { name: 'Schlafzimmer Licht', entity: 'light.bedroom_all', icon: 'mdi:lightbulb-outline', x: 70, y: 73, width: 14, height: 7, tap_action: { action: 'toggle', entity: 'light.bedroom_all' } },
   ],
   default_room: 'living_room',
   default_page: 'home',
@@ -1563,6 +1568,54 @@ function stateLabel(hass, item) {
 
   const state = hass.states[item.entity];
   return `${state.state}${state.attributes?.unit_of_measurement ? ` ${state.attributes.unit_of_measurement}` : ''}`;
+}
+
+function floorplanElementStyle(item, defaults = {}, customProperties = {}) {
+  const declarations = [
+    ['left', cssLength(item.x ?? item.left, defaults.x)],
+    ['top', cssLength(item.y ?? item.top, defaults.y)],
+    ['width', cssLength(item.width, defaults.width)],
+    ['height', cssLength(item.height, defaults.height)],
+    ['min-width', cssLength(item.min_width)],
+    ['min-height', cssLength(item.min_height)],
+    ['max-width', cssLength(item.max_width)],
+    ['max-height', cssLength(item.max_height)],
+  ];
+
+  Object.entries(customProperties).forEach(([property, value]) => {
+    declarations.push([property, value]);
+  });
+
+  return declarations
+    .filter(([, value]) => value)
+    .map(([property, value]) => `${property}:${value}`)
+    .join(';');
+}
+
+function cssLength(value, fallback) {
+  const resolved = value ?? fallback;
+  if (resolved === undefined || resolved === null || resolved === '') {
+    return '';
+  }
+
+  if (typeof resolved === 'number') {
+    return Number.isFinite(resolved) ? `${resolved}%` : '';
+  }
+
+  const normalized = String(resolved).trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if (/^-?\d+(?:\.\d+)?$/.test(normalized)) {
+    return `${normalized}%`;
+  }
+
+  if (/^-?\d+(?:\.\d+)?(?:%|px|rem|em|vh|vw|vmin|vmax|ch|cm|mm|in|pt|pc)$/i.test(normalized)) {
+    return normalized;
+  }
+
+  return '';
 }
 
 function parseAktion(value) {
