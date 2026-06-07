@@ -123,7 +123,7 @@ views:
         floorplan_rooms:
           - label: Büro
             room: office
-            x: 24
+            x: 742
             y: 30
             width: 25
             height: 34
