@@ -1563,7 +1563,12 @@ class HaNeoDashboardEditor extends HTMLElement {
   }
 
   set hass(hass) {
+    const hadHass = Boolean(this._hass);
     this._hass = hass;
+    if (!hadHass && this.config) {
+      this.render();
+      return;
+    }
     this.hydrateEditorControls();
   }
 
@@ -1710,17 +1715,36 @@ class HaNeoDashboardEditor extends HTMLElement {
   }
 
   entityControl(field, label, value, domain) {
+    const options = this.entityOptions(domain, value);
     return `
-      <label class="field">
+      <div class="field entity-field">
         <span>${escapeHtml(label)}</span>
-        <ha-entity-picker
-          allow-custom-entity
-          data-config-field="${escapeAttr(field)}"
-          data-entity-domain="${escapeAttr(domain)}"
-          value="${escapeAttr(value)}"
-        ></ha-entity-picker>
-      </label>
+        <select data-config-field="${escapeAttr(field)}" data-entity-domain="${escapeAttr(domain)}">
+          ${options.map((option) => `<option value="${escapeAttr(option.value)}" ${option.value === value ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
+        </select>
+        <input type="text" value="${escapeAttr(value)}" placeholder="${escapeAttr(`${domain}.deine_entity`)}" data-config-field="${escapeAttr(field)}" data-entity-domain="${escapeAttr(domain)}">
+      </div>
     `;
+  }
+
+  entityOptions(domain, currentValue = '') {
+    const states = Object.values(this._hass?.states || {})
+      .filter((state) => state.entity_id?.startsWith(`${domain}.`))
+      .map((state) => ({
+        value: state.entity_id,
+        label: `${state.attributes?.friendly_name || state.entity_id} (${state.entity_id})`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'de'));
+
+    if (currentValue && !states.some((state) => state.value === currentValue)) {
+      states.unshift({ value: currentValue, label: currentValue });
+    }
+
+    if (!states.length) {
+      states.push({ value: '', label: `Keine ${domain}.* Entity gefunden - unten manuell eintragen` });
+    }
+
+    return states;
   }
 
   renderWorkspaceItem(kind, item, index) {
@@ -1851,6 +1875,7 @@ class HaNeoDashboardEditor extends HTMLElement {
       const value = event.type === 'value-changed' ? event.detail?.value : target.value;
       this.config[field] = target.type === 'checkbox' ? target.checked : value;
       this.syncWidgetActions(field);
+      this.syncEntityControls(field, this.config[field], target);
       this.configChanged({ render: event.type === 'change' || event.type === 'value-changed' });
       return;
     }
@@ -1953,6 +1978,18 @@ class HaNeoDashboardEditor extends HTMLElement {
     this.config.left_sidebar_widgets = ['weather', 'calendar'].filter((entry) => widgets.has(entry));
   }
 
+  syncEntityControls(field, value, source) {
+    if (!['weather_entity', 'calendar_entity'].includes(field)) {
+      return;
+    }
+
+    this.shadowRoot?.querySelectorAll(`[data-config-field="${field}"]`).forEach((control) => {
+      if (control !== source) {
+        control.value = value || '';
+      }
+    });
+  }
+
   syncWidgetActions(field) {
     if (field === 'weather_entity') {
       this.config.home_weather = { ...this.config.home_weather, entity: this.config.weather_entity };
@@ -1969,16 +2006,12 @@ class HaNeoDashboardEditor extends HTMLElement {
   }
 
   hydrateEditorControls() {
-    if (!this.shadowRoot || !this._hass) {
+    if (!this.shadowRoot) {
       return;
     }
 
-    this.shadowRoot.querySelectorAll('ha-entity-picker').forEach((picker) => {
-      picker.hass = this._hass;
-      picker.value = this.config?.[picker.dataset.configField] || '';
-      if (picker.dataset.entityDomain) {
-        picker.includeDomains = [picker.dataset.entityDomain];
-      }
+    ['weather_entity', 'calendar_entity'].forEach((field) => {
+      this.syncEntityControls(field, this.config?.[field] || '');
     });
   }
 
@@ -2082,13 +2115,14 @@ class HaNeoDashboardEditor extends HTMLElement {
       h3 { margin: 0; font-size: 14px; }
       .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .field { display: grid; gap: 6px; min-width: 0; font-size: 12px; font-weight: 700; color: var(--secondary-text-color); }
-      .field input { min-width: 0; height: 36px; box-sizing: border-box; border: 1px solid var(--divider-color, rgba(127, 127, 127, .25)); border-radius: 8px; padding: 0 10px; background: var(--secondary-background-color, transparent); color: var(--primary-text-color); }
+      .field input, .field select { min-width: 0; height: 36px; box-sizing: border-box; border: 1px solid var(--divider-color, rgba(127, 127, 127, .25)); border-radius: 8px; padding: 0 10px; background: var(--secondary-background-color, transparent); color: var(--primary-text-color); }
       .toggle { grid-template-columns: auto 1fr; align-items: center; font-weight: 500; }
       .toggle input { width: 18px; height: 18px; padding: 0; }
       .widget-toggles, .widget-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
       .widget-editor { display: grid; gap: 10px; min-width: 0; padding: 12px; border-radius: 12px; background: rgba(44, 156, 255, .07); border: 1px solid var(--divider-color, rgba(127, 127, 127, .18)); }
       .widget-editor h4 { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; color: var(--primary-text-color); }
-      ha-entity-picker { min-width: 0; }
+      .entity-field { gap: 8px; }
+      .entity-field input { font-family: monospace; }
       .floorplan-workspace { position: relative; width: 100%; aspect-ratio: 1000 / 620; min-height: 300px; border-radius: 18px; overflow: hidden; background: radial-gradient(circle at center, rgba(44, 156, 255, .16), rgba(12, 15, 36, .62)); }
       .editor-floorplan-image, .editor-floorplan-svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
       .editor-floorplan-svg { color: rgba(255,255,255,.9); }
