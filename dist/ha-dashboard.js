@@ -79,12 +79,19 @@ class HaNeoDashboard extends HTMLElement {
   }
 
   renderTopBar(page) {
+    const roomTitle = this.activeConfig.title || this.config.title;
+    const roomSubtitle = this.activeConfig.subtitle || this.config.subtitle;
+    const pageLabel = page?.label || page?.title;
     const title = page?.type === 'home'
       ? (this.config.home_title || 'STARTSEITE')
-      : (page?.title || this.activeConfig.title || this.config.title);
+      : page?.type === 'rooms'
+        ? (page?.title || 'RÄUME')
+        : roomTitle;
     const subtitle = page?.type === 'home'
       ? (this.config.home_subtitle || 'Wohnung')
-      : (page?.subtitle || this.activeConfig.subtitle || this.config.subtitle);
+      : page?.type === 'rooms'
+        ? (page?.subtitle || 'Wohnung')
+        : [roomSubtitle, page?.id && page.id !== 'overview' ? pageLabel : ''].filter(Boolean).join(' · ');
     const presence = this.config.presence || [];
 
     return `
@@ -289,7 +296,8 @@ class HaNeoDashboard extends HTMLElement {
       return this.renderServerStatusPanel(page);
     }
 
-    const cfg = page?.type === 'home' || page?.type === 'rooms'
+    const isHomeLike = page?.type === 'home' || page?.type === 'rooms';
+    const cfg = isHomeLike
       ? {
         top_tabs: this.config.home_top_tabs || this.config.room_overview_top_tabs || [],
         systems: this.config.home_systems || this.config.room_overview_systems || [],
@@ -299,18 +307,71 @@ class HaNeoDashboard extends HTMLElement {
 
     return `
       <aside class="left-panel">
-        <div class="tabs">
+        ${this.config.left_sidebar_widgets === false ? '' : this.renderHomeSidebarWidgets(this.config.left_sidebar_widgets || this.config.home_sidebar_widgets)}
+        ${cfg.top_tabs?.length ? `<div class="tabs">
           ${cfg.top_tabs.map((tab, index) => `
             <button class="tab ${index === 0 ? 'tab-active' : ''}" type="button" data-action='${jsonAttr(tab.tap_action)}'>${escapeHtml(tab.label)}</button>
           `).join('')}
-        </div>
-        <div class="systems">
+        </div>` : ''}
+        ${cfg.systems?.length ? `<div class="systems">
           ${cfg.systems.map((item) => this.renderStatusRow(item)).join('')}
-        </div>
+        </div>` : ''}
         ${cfg.metrics?.length ? `<div class="metrics">
           ${cfg.metrics.map((metric) => this.renderMetric(metric)).join('')}
         </div>` : ''}
       </aside>
+    `;
+  }
+
+  renderHomeSidebarWidgets(widgetConfig) {
+    const widgets = widgetConfig || ['weather', 'calendar'];
+    return `
+      <div class="home-sidebar-widgets">
+        ${widgets.includes('weather') ? this.renderWeatherWidget(this.config.home_weather || {}) : ''}
+        ${widgets.includes('calendar') ? this.renderCalendarWidget(this.config.home_calendar || {}) : ''}
+      </div>
+    `;
+  }
+
+  renderWeatherWidget(options) {
+    const entityId = options.entity || this.config.weather_entity || 'weather.home';
+    const state = this._hass.states[entityId];
+    const attributes = state?.attributes || {};
+    const temperature = attributes.temperature ?? attributes.apparent_temperature;
+    const unit = attributes.temperature_unit || this._hass.config?.unit_system?.temperature || '°C';
+    const condition = options.label || (state ? weatherConditionLabel(state.state) : 'Wetter');
+    const forecast = (options.forecast || attributes.forecast || []).slice(0, Number(options.forecast_count ?? 4));
+
+    return `
+      <button class="sidebar-widget weather-widget" type="button" data-action='${jsonAttr(options.tap_action || { action: 'more-info', entity: entityId })}'>
+        <span class="sidebar-widget-head"><ha-icon icon="${escapeAttr(options.icon || weatherIcon(state?.state))}"></ha-icon><strong>${escapeHtml(options.title || 'Wetter')}</strong></span>
+        <span class="weather-current"><b>${escapeHtml(formatWeatherTemperature(temperature, unit))}</b><small>${escapeHtml(condition)}</small></span>
+        <span class="weather-details">
+          ${attributes.humidity !== undefined ? `<span><ha-icon icon="mdi:water-percent"></ha-icon>${escapeHtml(attributes.humidity)}%</span>` : ''}
+          ${attributes.wind_speed !== undefined ? `<span><ha-icon icon="mdi:weather-windy"></ha-icon>${escapeHtml(attributes.wind_speed)} ${escapeHtml(attributes.wind_speed_unit || '')}</span>` : ''}
+        </span>
+        ${forecast.length ? `<span class="weather-forecast">
+          ${forecast.map((entry) => `<span><small>${escapeHtml(forecastDay(entry.datetime))}</small><ha-icon icon="${escapeAttr(weatherIcon(entry.condition))}"></ha-icon><b>${escapeHtml(forecastTemp(entry, unit))}</b></span>`).join('')}
+        </span>` : `<span class="weather-empty">Vorhersage über ${escapeHtml(entityId)} konfigurieren.</span>`}
+      </button>
+    `;
+  }
+
+  renderCalendarWidget(options) {
+    const entityId = options.entity || this.config.calendar_entity || 'calendar.home';
+    const state = this._hass.states[entityId];
+    const attributes = state?.attributes || {};
+    const message = options.message || attributes.message || attributes.friendly_name || 'Keine Termine';
+    const start = attributes.start_time || attributes.start || attributes.start_date;
+    const end = attributes.end_time || attributes.end || attributes.end_date;
+
+    return `
+      <button class="sidebar-widget calendar-widget" type="button" data-action='${jsonAttr(options.tap_action || { action: 'more-info', entity: entityId })}'>
+        <span class="sidebar-widget-head"><ha-icon icon="${escapeAttr(options.icon || 'mdi:calendar-apple')}"></ha-icon><strong>${escapeHtml(options.title || 'Kalender')}</strong></span>
+        <span class="calendar-date"><b>${escapeHtml(formatToday())}</b><small>${escapeHtml(options.subtitle || 'iCloud / Home Assistant Kalender')}</small></span>
+        <span class="calendar-event"><strong>${escapeHtml(message)}</strong><small>${escapeHtml(formatDateRange(start, end))}</small></span>
+        <span class="calendar-hint">Entity: ${escapeHtml(entityId)}</span>
+      </button>
     `;
   }
 
@@ -1260,6 +1321,23 @@ class HaNeoDashboard extends HTMLElement {
       .left-panel { grid-area: left; min-height: 0; overflow: hidden auto; padding-bottom: 8px; }
       .content-panel { grid-area: content; display: grid; align-content: start; justify-items: center; min-width: 0; min-height: 0; overflow: hidden auto; padding-bottom: 12px; }
       .right-panel { display: none; }
+      .home-sidebar-widgets { display: grid; gap: 14px; margin-bottom: 24px; }
+      .sidebar-widget { width: 100%; display: grid; gap: 10px; padding: 14px; border: 1px solid rgba(169, 181, 232, .22); border-radius: 18px; background: rgba(20, 24, 57, .64); text-align: left; box-shadow: 0 18px 34px rgba(0, 0, 0, .18); }
+      .sidebar-widget-head { display: flex; align-items: center; gap: 8px; color: var(--neo-muted); font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
+      .sidebar-widget-head ha-icon { width: 20px; height: 20px; color: var(--neo-blue); }
+      .weather-current { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: end; }
+      .weather-current b { font-size: 34px; line-height: 1; letter-spacing: -.04em; }
+      .weather-current small, .calendar-date small, .calendar-event small, .weather-empty, .calendar-hint { color: var(--neo-muted); font-size: 11px; }
+      .weather-details { display: flex; flex-wrap: wrap; gap: 8px; color: var(--neo-muted); font-size: 11px; }
+      .weather-details span { display: inline-flex; align-items: center; gap: 4px; }
+      .weather-details ha-icon { width: 14px; height: 14px; color: var(--neo-blue); }
+      .weather-forecast { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+      .weather-forecast > span { display: grid; justify-items: center; gap: 3px; padding: 7px 4px; border-radius: 10px; background: rgba(255, 255, 255, .06); font-size: 10px; }
+      .weather-forecast ha-icon { width: 18px; height: 18px; color: var(--neo-blue); }
+      .calendar-date b { display: block; font-size: 20px; line-height: 1.1; }
+      .calendar-event { display: grid; gap: 4px; padding-left: 10px; border-left: 3px solid var(--neo-blue); }
+      .calendar-event strong { font-size: 13px; }
+      .calendar-hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .tabs { display: flex; margin-bottom: 30px; }
       .tab { min-width: 104px; min-height: 48px; padding: 0 16px; border: 1px solid rgba(170, 180, 230, .35); background: rgba(16, 19, 45, .55); border-radius: 6px; font-size: 12px; font-weight: 800; }
       .tab-active { background: rgba(255, 255, 255, .96); color: #101225; }
@@ -2033,6 +2111,12 @@ const DEFAULT_CONFIG = {
   home_subtitle: 'Wohnung',
   apartment_floorplan_image: '/local/community/ha-dashboard-assets/home.svg',
   floorplan_editor: true,
+  weather_entity: 'weather.home',
+  calendar_entity: 'calendar.home',
+  home_sidebar_widgets: ['weather', 'calendar'],
+  left_sidebar_widgets: ['weather', 'calendar'],
+  home_weather: { title: 'Wetter', forecast_count: 4 },
+  home_calendar: { title: 'Kalender', subtitle: 'iCloud Kalender' },
   presence: [
     { name: 'Person 1', entity: 'person.person_1', icon: 'mdi:account', tap_action: { action: 'more-info', entity: 'person.person_1' } },
     { name: 'Person 2', entity: 'person.person_2', icon: 'mdi:account-outline', tap_action: { action: 'more-info', entity: 'person.person_2' } },
@@ -2340,6 +2424,12 @@ function mergeConfig(config) {
     home_top_tabs: config.home_top_tabs || DEFAULT_CONFIG.home_top_tabs || config.room_overview_top_tabs || DEFAULT_CONFIG.room_overview_top_tabs,
     home_systems: config.home_systems || DEFAULT_CONFIG.home_systems || config.room_overview_systems || DEFAULT_CONFIG.room_overview_systems,
     home_metrics: config.home_metrics || DEFAULT_CONFIG.home_metrics || config.room_overview_metrics || DEFAULT_CONFIG.room_overview_metrics,
+    home_sidebar_widgets: config.home_sidebar_widgets || DEFAULT_CONFIG.home_sidebar_widgets,
+    left_sidebar_widgets: config.left_sidebar_widgets ?? DEFAULT_CONFIG.left_sidebar_widgets,
+    home_weather: config.home_weather || DEFAULT_CONFIG.home_weather,
+    home_calendar: config.home_calendar || DEFAULT_CONFIG.home_calendar,
+    weather_entity: config.weather_entity || DEFAULT_CONFIG.weather_entity,
+    calendar_entity: config.calendar_entity || DEFAULT_CONFIG.calendar_entity,
     presence: config.presence || DEFAULT_CONFIG.presence,
     floorplan_editor: config.floorplan_editor ?? DEFAULT_CONFIG.floorplan_editor,
     floorplan_rooms: cloneList(config.floorplan_rooms || DEFAULT_CONFIG.floorplan_rooms),
@@ -2526,6 +2616,76 @@ function clamp(value, min, max) {
 
 function roundPercent(value) {
   return Math.round(value * 10) / 10;
+}
+
+function weatherIcon(condition = '') {
+  const normalized = String(condition).toLowerCase();
+  if (normalized.includes('lightning') || normalized.includes('storm')) return 'mdi:weather-lightning';
+  if (normalized.includes('rain') || normalized.includes('pouring')) return 'mdi:weather-rainy';
+  if (normalized.includes('snow')) return 'mdi:weather-snowy';
+  if (normalized.includes('fog')) return 'mdi:weather-fog';
+  if (normalized.includes('cloud') || normalized.includes('partlycloudy')) return 'mdi:weather-partly-cloudy';
+  if (normalized.includes('clear') || normalized.includes('sun')) return 'mdi:weather-sunny';
+  return 'mdi:weather-partly-cloudy';
+}
+
+function weatherConditionLabel(condition = '') {
+  const labels = {
+    clear: 'Klar',
+    'clear-night': 'Klar',
+    cloudy: 'Bewölkt',
+    fog: 'Nebel',
+    hail: 'Hagel',
+    lightning: 'Gewitter',
+    'lightning-rainy': 'Gewitterregen',
+    partlycloudy: 'Teilweise bewölkt',
+    pouring: 'Starkregen',
+    rainy: 'Regen',
+    snowy: 'Schnee',
+    'snowy-rainy': 'Schneeregen',
+    sunny: 'Sonnig',
+    windy: 'Windig',
+    'windy-variant': 'Windig',
+  };
+  return labels[condition] || condition || 'Wetter';
+}
+
+function forecastDay(value) {
+  if (!value) return '—';
+  try {
+    return new Date(value).toLocaleDateString('de-DE', { weekday: 'short' });
+  } catch (_error) {
+    return String(value).slice(0, 3);
+  }
+}
+
+function formatWeatherTemperature(value, unit) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `${numeric.toLocaleString('de-DE', { maximumFractionDigits: 1 })}${unit}` : '—';
+}
+
+function forecastTemp(entry, unit) {
+  const value = entry.temperature ?? entry.templow ?? entry.native_temperature;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `${Math.round(numeric)}${unit}` : '—';
+}
+
+function formatToday() {
+  return new Date().toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' });
+}
+
+function formatDateRange(start, end) {
+  if (!start && !end) {
+    return 'Nächster Termin aus der Kalender-Entity';
+  }
+
+  const format = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  };
+  return [format(start), format(end)].filter(Boolean).join(' – ');
 }
 
 function parseAktion(value) {
