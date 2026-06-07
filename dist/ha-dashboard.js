@@ -3,9 +3,16 @@ class HaNeoDashboard extends HTMLElement {
     return {
       default_page: 'home',
       default_room: 'living_room',
+      floorplan_editor: true,
       rooms: DEFAULT_ROOMS,
+      floorplan_rooms: DEFAULT_CONFIG.floorplan_rooms,
+      floorplan_entities: DEFAULT_CONFIG.floorplan_entities,
       pages: DEFAULT_PAGES,
     };
+  }
+
+  static async getConfigElement() {
+    return document.createElement('ha-neo-dashboard-editor');
   }
 
   setConfig(config) {
@@ -13,6 +20,7 @@ class HaNeoDashboard extends HTMLElement {
       throw new Error('Invalid configuration');
     }
 
+    this.rawConfig = { ...config };
     this.config = mergeConfig(config);
     this.currentRoom = this.currentRoom || this.config.default_room || this.config.rooms[0]?.id || 'living_room';
     this.currentPage = this.currentPage || this.config.default_page || this.config.pages[0]?.id || 'home';
@@ -29,10 +37,14 @@ class HaNeoDashboard extends HTMLElement {
 
   connectedCallback() {
     this.addEventListener('click', this.handleClick);
+    this.addEventListener('input', this.handleFloorplanEditorInput);
+    this.addEventListener('change', this.handleFloorplanEditorInput);
   }
 
   disconnectedCallback() {
     this.removeEventListener('click', this.handleClick);
+    this.removeEventListener('input', this.handleFloorplanEditorInput);
+    this.removeEventListener('change', this.handleFloorplanEditorInput);
   }
 
   render() {
@@ -84,9 +96,17 @@ class HaNeoDashboard extends HTMLElement {
           <strong>${escapeHtml(title)}</strong>
           <small>${escapeHtml(subtitle || '')}</small>
         </button>
-        <button class="top-action" type="button" data-action='${jsonAttr(this.config.close_action || { action: 'navigate', navigation_path: '/lovelace' })}'>
-          <ha-icon icon="${escapeAttr(this.config.close_icon || 'mdi:close-circle-outline')}"></ha-icon>
-        </button>
+        <div class="top-actions">
+          ${page?.type === 'home' && this.config.floorplan_editor !== false ? `
+            <button class="top-edit-action" type="button" data-floorplan-editor-toggle="true">
+              <ha-icon icon="mdi:tune-variant"></ha-icon>
+              <span>ANPASSEN</span>
+            </button>
+          ` : ''}
+          <button class="top-action" type="button" data-action='${jsonAttr(this.config.close_action || { action: 'navigate', navigation_path: '/lovelace' })}'>
+            <ha-icon icon="${escapeAttr(this.config.close_icon || 'mdi:close-circle-outline')}"></ha-icon>
+          </button>
+        </div>
       </header>
     `;
   }
@@ -106,10 +126,11 @@ class HaNeoDashboard extends HTMLElement {
 
   renderHome() {
     return `
-      <section class="floorplan-wrap">
+      <section class="floorplan-wrap ${this.floorplanEditorOpen ? 'is-editing' : ''}">
         ${this.config.apartment_floorplan_image ? `<img class="floorplan-image" src="${escapeAttr(this.config.apartment_floorplan_image)}" alt="${escapeAttr(this.config.home_title || 'Wohnungsplan')}">` : this.renderInlineFloorplan()}
-        ${(this.config.floorplan_rooms || []).map((room) => this.renderFloorplanRoom(room)).join('')}
-        ${(this.config.floorplan_entities || []).map((entity) => this.renderFloorplanEntity(entity)).join('')}
+        ${(this.config.floorplan_rooms || []).map((room, index) => this.renderFloorplanRoom(room, index)).join('')}
+        ${(this.config.floorplan_entities || []).map((entity, index) => this.renderFloorplanEntity(entity, index)).join('')}
+        ${this.config.floorplan_editor === false ? '' : this.renderFloorplanEditor()}
       </section>
     `;
   }
@@ -132,26 +153,121 @@ class HaNeoDashboard extends HTMLElement {
     `;
   }
 
-  renderFloorplanRoom(room) {
+  renderFloorplanRoom(room, index) {
     const resolvedRoom = resolveRoomValue(room, this.activeRoom);
+    const style = floorplanElementStyle(resolvedRoom, { x: 50, y: 50, width: 16, height: 12 });
+    const selected = this.floorplanEditorOpen && this.floorplanEditorSelection?.kind === 'rooms' && this.floorplanEditorSelection?.index === index;
+
     return `
-      <button class="floorplan-room-hotspot" type="button" style="left:${Number(resolvedRoom.x) || 50}%;top:${Number(resolvedRoom.y) || 50}%;width:${Number(resolvedRoom.width) || 16}%;height:${Number(resolvedRoom.height) || 12}%" data-room="${escapeAttr(resolvedRoom.room || resolvedRoom.id || '')}" data-action='${jsonAttr(actionFor(resolvedRoom))}'>
+      <button class="floorplan-room-hotspot ${selected ? 'editor-selected' : ''}" type="button" style="${escapeAttr(style)}" data-room="${escapeAttr(resolvedRoom.room || resolvedRoom.id || '')}" data-action='${jsonAttr(actionFor(resolvedRoom))}' data-floorplan-kind="rooms" data-floorplan-index="${index}">
         <span>${escapeHtml(resolvedRoom.label || resolvedRoom.name || '')}</span>
       </button>
     `;
   }
 
-  renderFloorplanEntity(item) {
+  renderFloorplanEntity(item, index) {
     const resolvedItem = resolveRoomValue(item, this.activeRoom);
     const state = resolvedItem.entity ? this._hass.states[resolvedItem.entity] : undefined;
     const active = ['on', 'open', 'heat', 'cool', 'playing', 'home'].includes(state?.state);
     const label = resolvedItem.label || (state ? `${this.formatState(state)}${this.unitSuffix(state)}` : resolvedItem.name || '');
+    const style = floorplanElementStyle(resolvedItem, { x: 50, y: 50 }, {
+      '--floorplan-entity-icon-size': cssLength(resolvedItem.icon_size),
+    });
+    const selected = this.floorplanEditorOpen && this.floorplanEditorSelection?.kind === 'entities' && this.floorplanEditorSelection?.index === index;
 
     return `
-      <button class="floorplan-entity ${active ? 'active' : ''}" type="button" style="left:${Number(resolvedItem.x) || 50}%;top:${Number(resolvedItem.y) || 50}%" data-action='${jsonAttr(actionFor(resolvedItem))}' title="${escapeAttr(resolvedItem.name || resolvedItem.entity || '')}">
+      <button class="floorplan-entity ${active ? 'active' : ''} ${selected ? 'editor-selected' : ''}" type="button" style="${escapeAttr(style)}" data-action='${jsonAttr(actionFor(resolvedItem))}' title="${escapeAttr(resolvedItem.name || resolvedItem.entity || '')}" data-floorplan-kind="entities" data-floorplan-index="${index}">
         <ha-icon icon="${escapeAttr(resolvedItem.icon || iconForDomain(resolvedItem.entity?.split('.')[0]))}"></ha-icon>
         ${label ? `<span>${escapeHtml(label)}</span>` : ''}
       </button>
+    `;
+  }
+
+  renderFloorplanEditor() {
+    const selected = this.selectedFloorplanItem;
+    const kindLabel = this.floorplanEditorSelection?.kind === 'entities' ? 'Entity' : 'Raum';
+
+    return `
+      <button class="floorplan-edit-toggle" type="button" data-floorplan-editor-toggle="true">
+        <ha-icon icon="mdi:tune-variant"></ha-icon>
+        <span>${this.floorplanEditorOpen ? 'Schließen' : 'Plan anpassen'}</span>
+      </button>
+      ${this.floorplanEditorOpen ? `
+        <aside class="floorplan-editor" aria-label="Floorplan anpassen">
+          <header>
+            <strong>Floorplan anpassen</strong>
+            <small>Änderungen werden sofort in der Karte angezeigt.</small>
+          </header>
+          <label class="floorplan-editor-field floorplan-editor-image">
+            <span>Floorplan-Bild</span>
+            <input type="text" value="${escapeAttr(this.config.apartment_floorplan_image || '')}" placeholder="/local/floorplan.svg" data-floorplan-image="true">
+          </label>
+          <div class="floorplan-editor-lists">
+            ${this.renderFloorplanEditorList('rooms', 'Räume', this.config.floorplan_rooms || [])}
+            ${this.renderFloorplanEditorList('entities', 'Entitäten', this.config.floorplan_entities || [])}
+          </div>
+          ${selected ? `
+            <section class="floorplan-editor-controls">
+              <h3>${escapeHtml(kindLabel)} bearbeiten</h3>
+              ${this.floorplanEditorSelection.kind === 'rooms' ? `
+                ${this.renderFloorplanTextControl('label', 'Name', selected.label || selected.name || '')}
+                ${this.renderFloorplanTextControl('room', 'Raum-ID', selected.room || selected.id || '')}
+              ` : `
+                ${this.renderFloorplanTextControl('name', 'Name', selected.name || selected.label || '')}
+                ${this.renderFloorplanTextControl('entity', 'Entity', selected.entity || '')}
+                ${this.renderFloorplanTextControl('icon', 'Icon', selected.icon || '')}
+              `}
+              ${this.renderFloorplanNumberControl('x', 'X', selected.x ?? selected.left ?? 50)}
+              ${this.renderFloorplanNumberControl('y', 'Y', selected.y ?? selected.top ?? 50)}
+              ${this.renderFloorplanNumberControl('width', 'Breite', selected.width ?? (this.floorplanEditorSelection.kind === 'rooms' ? 16 : ''))}
+              ${this.renderFloorplanNumberControl('height', 'Höhe', selected.height ?? (this.floorplanEditorSelection.kind === 'rooms' ? 12 : ''))}
+              ${this.floorplanEditorSelection.kind === 'entities' ? `
+                <label class="floorplan-editor-field">
+                  <span>Icon-Größe</span>
+                  <input type="text" value="${escapeAttr(selected.icon_size || '')}" placeholder="18px" data-floorplan-field="icon_size">
+                </label>
+              ` : ''}
+            </section>
+          ` : `<p class="floorplan-editor-empty">Wähle einen Raum oder eine Entität aus.</p>`}
+          <button class="floorplan-editor-copy" type="button" data-floorplan-copy="true">${this.floorplanEditorCopied ? 'YAML kopiert' : 'YAML kopieren'}</button>
+        </aside>
+      ` : ''}
+    `;
+  }
+
+  renderFloorplanEditorList(kind, title, items) {
+    return `
+      <section>
+        <strong>${escapeHtml(title)}</strong>
+        <div>
+          ${items.map((item, index) => {
+            const active = this.floorplanEditorSelection?.kind === kind && this.floorplanEditorSelection?.index === index;
+            return `<button class="${active ? 'active' : ''}" type="button" data-floorplan-editor-select="${kind}" data-floorplan-index="${index}">${escapeHtml(item.label || item.name || item.room || item.entity || `${title} ${index + 1}`)}</button>`;
+          }).join('') || '<small>Keine Einträge</small>'}
+        </div>
+      </section>
+    `;
+  }
+
+  renderFloorplanTextControl(field, label, value) {
+    return `
+      <label class="floorplan-editor-field floorplan-editor-text">
+        <span>${escapeHtml(label)}</span>
+        <input type="text" value="${escapeAttr(value)}" data-floorplan-field="${escapeAttr(field)}">
+      </label>
+    `;
+  }
+
+  renderFloorplanNumberControl(field, label, value) {
+    const numericValue = Number.parseFloat(value);
+    const displayValue = Number.isFinite(numericValue) ? numericValue : '';
+
+    return `
+      <label class="floorplan-editor-field">
+        <span>${escapeHtml(label)}</span>
+        <input type="range" min="0" max="100" step="0.5" value="${escapeAttr(displayValue)}" data-floorplan-field="${escapeAttr(field)}">
+        <input type="number" min="0" max="100" step="0.5" value="${escapeAttr(displayValue)}" data-floorplan-field="${escapeAttr(field)}">
+      </label>
     `;
   }
 
@@ -678,6 +794,30 @@ class HaNeoDashboard extends HTMLElement {
   }
 
   handleClick = (event) => {
+    const editorTarget = event.composedPath().find((node) => node?.dataset?.floorplanEditorToggle || node?.dataset?.floorplanEditorSelect || node?.dataset?.floorplanCopy || node?.dataset?.floorplanKind);
+    if (editorTarget) {
+      if (editorTarget.dataset.floorplanEditorToggle) {
+        this.floorplanEditorOpen = !this.floorplanEditorOpen;
+        this.ensureFloorplanEditorSelection();
+        this.render();
+        return;
+      }
+
+      if (editorTarget.dataset.floorplanEditorSelect || (this.floorplanEditorOpen && editorTarget.dataset.floorplanKind)) {
+        this.floorplanEditorSelection = {
+          kind: editorTarget.dataset.floorplanEditorSelect || editorTarget.dataset.floorplanKind,
+          index: Number(editorTarget.dataset.floorplanIndex || 0),
+        };
+        this.render();
+        return;
+      }
+
+      if (editorTarget.dataset.floorplanCopy) {
+        this.copyFloorplanYaml();
+        return;
+      }
+    }
+
     const target = event.composedPath().find((node) => node?.dataset?.room || node?.dataset?.action || node?.dataset?.page);
     if (!target) {
       return;
@@ -701,6 +841,93 @@ class HaNeoDashboard extends HTMLElement {
 
     this.performAktion(parseAktion(target.dataset.action));
   };
+
+  handleFloorplanEditorInput = (event) => {
+    const target = event.composedPath().find((node) => node?.dataset?.floorplanField || node?.dataset?.floorplanImage);
+    if (!target) {
+      return;
+    }
+
+    if (target.dataset.floorplanImage) {
+      this.config.apartment_floorplan_image = target.value;
+      this.floorplanEditorCopied = false;
+      this.updateFloorplanConfig();
+      return;
+    }
+
+    this.ensureFloorplanEditorSelection();
+    const selected = this.selectedFloorplanItem;
+    if (!selected) {
+      return;
+    }
+
+    const field = target.dataset.floorplanField;
+    const numericFields = ['x', 'y', 'width', 'height'];
+    selected[field] = numericFields.includes(field) ? Number(target.value) : target.value;
+    this.floorplanEditorCopied = false;
+    this.updateFloorplanConfig();
+  };
+
+  get selectedFloorplanItem() {
+    this.ensureFloorplanEditorSelection();
+    const selection = this.floorplanEditorSelection;
+    if (!selection) {
+      return undefined;
+    }
+
+    const source = selection.kind === 'entities' ? this.config.floorplan_entities : this.config.floorplan_rooms;
+    return source?.[selection.index];
+  }
+
+  ensureFloorplanEditorSelection() {
+    if (this.floorplanEditorSelection) {
+      const source = this.floorplanEditorSelection.kind === 'entities' ? this.config.floorplan_entities : this.config.floorplan_rooms;
+      if (source?.[this.floorplanEditorSelection.index]) {
+        return;
+      }
+    }
+
+    if (this.config.floorplan_rooms?.length) {
+      this.floorplanEditorSelection = { kind: 'rooms', index: 0 };
+      return;
+    }
+
+    if (this.config.floorplan_entities?.length) {
+      this.floorplanEditorSelection = { kind: 'entities', index: 0 };
+    }
+  }
+
+  updateFloorplanConfig({ render = true } = {}) {
+    const nextConfig = {
+      ...(this.rawConfig || {}),
+      apartment_floorplan_image: this.config.apartment_floorplan_image,
+      floorplan_rooms: this.config.floorplan_rooms,
+      floorplan_entities: this.config.floorplan_entities,
+      floorplan_editor: this.config.floorplan_editor,
+    };
+
+    this.rawConfig = nextConfig;
+    this.dispatchEvent(new CustomEvent('config-changed', {
+      bubbles: true,
+      composed: true,
+      detail: { config: nextConfig },
+    }));
+
+    if (render) {
+      this.render();
+    }
+  }
+
+  async copyFloorplanYaml() {
+    const yaml = floorplanYaml(this.config);
+    try {
+      await navigator.clipboard?.writeText(yaml);
+      this.floorplanEditorCopied = true;
+    } catch (_error) {
+      this.floorplanEditorCopied = false;
+    }
+    this.render();
+  }
 
   performAktion(action) {
     if (!action || action.action === 'none') {
@@ -886,7 +1113,7 @@ class HaNeoDashboard extends HTMLElement {
         backdrop-filter: saturate(120%);
         position: relative;
       }
-      .top-bar { grid-area: top; display: grid; grid-template-columns: minmax(240px, 310px) 1fr 64px; align-items: center; gap: 22px; border-bottom: 1px solid rgba(169, 181, 232, .34); padding-bottom: 16px; }
+      .top-bar { grid-area: top; display: grid; grid-template-columns: minmax(240px, 310px) 1fr auto; align-items: center; gap: 22px; border-bottom: 1px solid rgba(169, 181, 232, .34); padding-bottom: 16px; }
       .presence-strip { display: grid; gap: 10px; align-content: center; }
       .presence-label { color: var(--neo-muted); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
       .presence-avatars { display: flex; gap: 10px; align-items: center; }
@@ -896,8 +1123,11 @@ class HaNeoDashboard extends HTMLElement {
       .top-title { justify-self: center; min-width: 240px; padding: 13px 28px 11px; border: 1px solid rgba(169, 181, 232, .42); border-radius: 9px; background: rgba(12, 15, 36, .58); text-align: center; box-shadow: inset 0 0 24px rgba(44, 156, 255, .06); }
       .top-title strong { display: block; font-size: 22px; font-weight: 600; letter-spacing: .04em; }
       .top-title small { display: block; margin-top: 7px; color: var(--neo-muted); font-size: 11px; }
-      .top-action { justify-self: end; width: 50px; height: 50px; display: grid; place-items: center; border-radius: 50%; background: rgba(20, 24, 57, .56); color: var(--neo-blue); }
+      .top-actions { justify-self: end; display: inline-flex; align-items: center; gap: 8px; }
+      .top-action { width: 50px; height: 50px; display: grid; place-items: center; border-radius: 50%; background: rgba(20, 24, 57, .56); color: var(--neo-blue); }
       .top-action ha-icon { width: 36px; height: 36px; }
+      .top-edit-action { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 12px; border-radius: 999px; background: rgba(255, 255, 255, .94); color: #111530; font-size: 11px; font-weight: 900; }
+      .top-edit-action ha-icon { width: 18px; height: 18px; }
       .left-panel { grid-area: left; min-height: 0; overflow: hidden auto; padding-bottom: 8px; }
       .content-panel { grid-area: content; display: grid; align-content: start; justify-items: center; min-width: 0; min-height: 0; overflow: hidden auto; padding-bottom: 12px; }
       .right-panel { display: none; }
@@ -948,10 +1178,31 @@ class HaNeoDashboard extends HTMLElement {
       .floorplan-room-hotspot { position: absolute; transform: translate(-50%, -50%); border-radius: 18px; background: rgba(44, 156, 255, .06); border: 1px solid transparent; color: transparent; }
       .floorplan-room-hotspot:hover, .floorplan-room-hotspot:focus-visible { background: rgba(44, 156, 255, .16); border-color: rgba(44, 156, 255, .45); color: var(--neo-text); }
       .floorplan-room-hotspot span { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 12px; font-weight: 800; white-space: nowrap; }
-      .floorplan-entity { position: absolute; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 6px 9px; border-radius: 999px; background: rgba(13, 17, 43, .78); border: 1px solid rgba(169, 181, 232, .26); color: var(--neo-muted); box-shadow: 0 14px 26px rgba(0, 0, 0, .22); backdrop-filter: blur(8px); }
+      .floorplan-entity { position: absolute; transform: translate(-50%, -50%); display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px; padding: 6px 9px; border-radius: 999px; background: rgba(13, 17, 43, .78); border: 1px solid rgba(169, 181, 232, .26); color: var(--neo-muted); box-shadow: 0 14px 26px rgba(0, 0, 0, .22); backdrop-filter: blur(8px); box-sizing: border-box; }
       .floorplan-entity.active { color: var(--neo-blue); border-color: rgba(44, 156, 255, .65); box-shadow: 0 0 24px rgba(44, 156, 255, .22); }
-      .floorplan-entity ha-icon { width: 18px; height: 18px; }
+      .floorplan-entity ha-icon { width: var(--floorplan-entity-icon-size, 18px); height: var(--floorplan-entity-icon-size, 18px); flex: 0 0 auto; }
       .floorplan-entity span { font-size: 11px; font-weight: 800; }
+      .floorplan-wrap.is-editing .floorplan-room-hotspot, .floorplan-wrap.is-editing .floorplan-entity { color: var(--neo-text); border-color: rgba(44, 156, 255, .55); background: rgba(44, 156, 255, .18); }
+      .floorplan-room-hotspot.editor-selected, .floorplan-entity.editor-selected { outline: 2px solid var(--neo-orange); outline-offset: 3px; color: var(--neo-text); border-color: var(--neo-orange); z-index: 5; }
+      .floorplan-edit-toggle { position: absolute; right: 16px; top: 16px; z-index: 20; display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px; border-radius: 999px; background: rgba(255, 255, 255, .94); color: #111530; font-size: 12px; font-weight: 900; box-shadow: 0 12px 24px rgba(0, 0, 0, .24); }
+      .floorplan-edit-toggle ha-icon { width: 18px; height: 18px; }
+      .floorplan-editor { position: absolute; right: 16px; top: 62px; bottom: 16px; z-index: 19; width: min(330px, calc(100% - 32px)); display: grid; grid-template-rows: auto auto minmax(0, auto) auto auto; gap: 12px; overflow: hidden auto; padding: 14px; border-radius: 18px; background: rgba(13, 17, 43, .92); border: 1px solid rgba(169, 181, 232, .34); color: var(--neo-text); box-shadow: 0 20px 40px rgba(0, 0, 0, .36); backdrop-filter: blur(14px); }
+      .floorplan-editor header strong { display: block; font-size: 15px; }
+      .floorplan-editor header small, .floorplan-editor-empty { color: var(--neo-muted); font-size: 11px; }
+      .floorplan-editor-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .floorplan-editor-lists section { min-width: 0; display: grid; gap: 7px; }
+      .floorplan-editor-lists section > strong { font-size: 11px; color: var(--neo-muted); }
+      .floorplan-editor-lists section > div { display: grid; gap: 5px; max-height: 116px; overflow: hidden auto; }
+      .floorplan-editor-lists button { min-height: 28px; padding: 4px 7px; border-radius: 8px; background: rgba(255, 255, 255, .08); color: var(--neo-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; text-align: left; }
+      .floorplan-editor-lists button.active { background: rgba(44, 156, 255, .28); color: var(--neo-text); }
+      .floorplan-editor-controls { display: grid; gap: 8px; }
+      .floorplan-editor-controls h3 { margin: 0; font-size: 12px; }
+      .floorplan-editor-field { display: grid; grid-template-columns: 58px 1fr 58px; gap: 8px; align-items: center; font-size: 11px; color: var(--neo-muted); }
+      .floorplan-editor-text { grid-template-columns: 58px 1fr; }
+      .floorplan-editor-field input { min-width: 0; height: 28px; padding: 0 8px; border-radius: 8px; border: 1px solid rgba(169, 181, 232, .26); background: rgba(255, 255, 255, .08); color: var(--neo-text); }
+      .floorplan-editor-field input[type="range"] { padding: 0; border: 0; accent-color: var(--neo-blue); background: transparent; }
+      .floorplan-editor-image { grid-template-columns: 82px 1fr; }
+      .floorplan-editor-copy { min-height: 34px; border-radius: 999px; background: rgba(44, 156, 255, .24); color: var(--neo-text); font-size: 12px; font-weight: 900; }
       .page-grid, .rooms-grid { width: min(760px, 100%); display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 16px; }
       .page-grid-wide, .full-page-grid, .server-layout { width: min(820px, 100%); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
       .full-page-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1074,7 +1325,7 @@ class HaNeoDashboard extends HTMLElement {
         .top-bar { grid-template-columns: 1fr auto; grid-template-areas: 'title action' 'presence presence'; }
         .presence-strip { grid-area: presence; }
         .top-title { grid-area: title; justify-self: stretch; min-width: 0; }
-        .top-action { grid-area: action; }
+        .top-actions { grid-area: action; }
         .floorplan-wrap { width: 100%; }
         .page-grid, .rooms-grid, .page-grid-wide, .full-page-grid, .server-layout, .custom-card-grid, .server-custom-card-grid { grid-template-columns: 1fr; }
         .span-2, .span-3, .span-4 { grid-column: auto; }
@@ -1084,6 +1335,295 @@ class HaNeoDashboard extends HTMLElement {
   }
 }
 
+
+
+class HaNeoDashboardEditor extends HTMLElement {
+  setConfig(config) {
+    this.config = this.normalizeConfig(config || {});
+    this.selectedKind = this.selectedKind || 'rooms';
+    this.selectedIndex = this.selectedIndex || 0;
+    this.render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+  }
+
+  connectedCallback() {
+    this.addEventListener('click', this.handleClick);
+    this.addEventListener('input', this.handleInput);
+    this.addEventListener('change', this.handleInput);
+    this.render();
+  }
+
+  disconnectedCallback() {
+    this.removeEventListener('click', this.handleClick);
+    this.removeEventListener('input', this.handleInput);
+    this.removeEventListener('change', this.handleInput);
+  }
+
+  normalizeConfig(config) {
+    return {
+      ...config,
+      default_page: config.default_page || 'home',
+      floorplan_editor: config.floorplan_editor ?? true,
+      apartment_floorplan_image: config.apartment_floorplan_image ?? DEFAULT_CONFIG.apartment_floorplan_image,
+      floorplan_rooms: cloneList(config.floorplan_rooms || DEFAULT_CONFIG.floorplan_rooms),
+      floorplan_entities: cloneList(config.floorplan_entities || DEFAULT_CONFIG.floorplan_entities),
+    };
+  }
+
+  render() {
+    if (!this.config) {
+      return;
+    }
+
+    if (!this.shadowRoot) {
+      this.attachShadow({ mode: 'open' });
+    }
+
+    this.ensureSelection();
+    const selected = this.selectedItem;
+    const selectedTitle = this.selectedKind === 'entities' ? 'Entität bearbeiten' : 'Raum bearbeiten';
+
+    this.shadowRoot.innerHTML = `
+      <style>${this.styles}</style>
+      <section class="editor-shell">
+        <header class="editor-head">
+          <strong>HA Neo Dashboard anpassen</strong>
+          <small>Der Editor ist absichtlich hier im Karten-Dialog, damit du nicht im YAML suchen musst.</small>
+        </header>
+
+        <section class="editor-card">
+          <h3>Große Floorplan-Arbeitsfläche</h3>
+          <label class="field wide">
+            <span>Floorplan-Bild</span>
+            <input type="text" value="${escapeAttr(this.config.apartment_floorplan_image || '')}" placeholder="/local/community/ha-dashboard-assets/home.svg" data-config-field="apartment_floorplan_image">
+          </label>
+          <label class="field toggle">
+            <input type="checkbox" ${this.config.floorplan_editor !== false ? 'checked' : ''} data-config-field="floorplan_editor">
+            <span>Button „Plan anpassen“ auch auf dem Dashboard anzeigen</span>
+          </label>
+          <div class="floorplan-workspace">
+            ${this.config.apartment_floorplan_image ? `<img class="editor-floorplan-image" src="${escapeAttr(this.config.apartment_floorplan_image)}" alt="Floorplan">` : editorInlineFloorplan()}
+            ${(this.config.floorplan_rooms || []).map((room, index) => this.renderWorkspaceItem('rooms', room, index)).join('')}
+            ${(this.config.floorplan_entities || []).map((entity, index) => this.renderWorkspaceItem('entities', entity, index)).join('')}
+          </div>
+          <p class="hint">Tipp: Klicke oben im Floorplan auf einen Raum oder eine Entität und ändere die Werte unten. Diese Arbeitsfläche ist größer als die schmale Home-Assistant-Vorschau neben YAML.</p>
+        </section>
+
+        <section class="editor-card grid-2">
+          ${this.renderList('rooms', 'Räume', 'Raum hinzufügen')}
+          ${this.renderList('entities', 'Entitäten', 'Entität hinzufügen')}
+        </section>
+
+        <section class="editor-card">
+          <h3>${escapeHtml(selectedTitle)}</h3>
+          ${selected ? this.renderSelectedControls(selected) : '<p class="hint">Wähle einen Eintrag aus.</p>'}
+        </section>
+
+        <section class="editor-card">
+          <h3>Fertige Floorplan-Konfiguration</h3>
+          <textarea readonly>${escapeHtml(floorplanYaml(this.config))}</textarea>
+          <p class="hint">Home Assistant übernimmt Änderungen im visuellen Karten-Editor automatisch. Bei Bedarf kannst du diesen Block zusätzlich kopieren.</p>
+        </section>
+      </section>
+    `;
+  }
+
+  renderWorkspaceItem(kind, item, index) {
+    const active = this.selectedKind === kind && this.selectedIndex === index;
+    const defaults = kind === 'rooms' ? { x: 50, y: 50, width: 16, height: 12 } : { x: 50, y: 50 };
+    const style = floorplanElementStyle(item, defaults, kind === 'entities' ? { '--floorplan-entity-icon-size': cssLength(item.icon_size) } : {});
+    const label = item.label || item.name || item.room || item.entity || `${kind === 'rooms' ? 'Raum' : 'Entity'} ${index + 1}`;
+
+    if (kind === 'rooms') {
+      return `<button class="workspace-room ${active ? 'active' : ''}" style="${escapeAttr(style)}" type="button" data-select-kind="rooms" data-select-index="${index}">${escapeHtml(label)}</button>`;
+    }
+
+    return `
+      <button class="workspace-entity ${active ? 'active' : ''}" style="${escapeAttr(style)}" type="button" data-select-kind="entities" data-select-index="${index}">
+        <ha-icon icon="${escapeAttr(item.icon || iconForDomain(item.entity?.split('.')[0]))}"></ha-icon>
+        <span>${escapeHtml(label)}</span>
+      </button>
+    `;
+  }
+
+  renderList(kind, title, addLabel) {
+    const items = this.config[kind === 'rooms' ? 'floorplan_rooms' : 'floorplan_entities'] || [];
+    return `
+      <section class="list-section">
+        <h3>${escapeHtml(title)}</h3>
+        <div class="item-list">
+          ${items.map((item, index) => {
+            const active = this.selectedKind === kind && this.selectedIndex === index;
+            const label = item.label || item.name || item.room || item.entity || `${title} ${index + 1}`;
+            return `<button class="${active ? 'active' : ''}" type="button" data-select-kind="${kind}" data-select-index="${index}">${escapeHtml(label)}</button>`;
+          }).join('') || '<small>Noch keine Einträge.</small>'}
+        </div>
+        <button class="secondary" type="button" data-add-kind="${kind}">${escapeHtml(addLabel)}</button>
+      </section>
+    `;
+  }
+
+  renderSelectedControls(item) {
+    const textControls = this.selectedKind === 'rooms'
+      ? `${this.textControl('label', 'Name', item.label || item.name || '')}${this.textControl('room', 'Raum-ID', item.room || item.id || '')}`
+      : `${this.textControl('name', 'Name', item.name || item.label || '')}${this.textControl('entity', 'Entity', item.entity || '')}${this.textControl('icon', 'Icon', item.icon || '')}`;
+    const iconControl = this.selectedKind === 'entities' ? this.textControl('icon_size', 'Icon-Größe', item.icon_size || '') : '';
+
+    return `
+      <div class="control-grid">
+        ${textControls}
+        ${this.numberControl('x', 'X', item.x ?? item.left ?? 50)}
+        ${this.numberControl('y', 'Y', item.y ?? item.top ?? 50)}
+        ${this.numberControl('width', 'Breite', item.width ?? (this.selectedKind === 'rooms' ? 16 : 12))}
+        ${this.numberControl('height', 'Höhe', item.height ?? (this.selectedKind === 'rooms' ? 12 : 7))}
+        ${iconControl}
+      </div>
+    `;
+  }
+
+  textControl(field, label, value) {
+    return `
+      <label class="field">
+        <span>${escapeHtml(label)}</span>
+        <input type="text" value="${escapeAttr(value)}" data-item-field="${escapeAttr(field)}">
+      </label>
+    `;
+  }
+
+  numberControl(field, label, value) {
+    const numericValue = Number.parseFloat(value);
+    const displayValue = Number.isFinite(numericValue) ? numericValue : '';
+    return `
+      <label class="field number-field">
+        <span>${escapeHtml(label)}</span>
+        <input type="range" min="0" max="100" step="0.5" value="${escapeAttr(displayValue)}" data-item-field="${escapeAttr(field)}">
+        <input type="number" min="0" max="100" step="0.5" value="${escapeAttr(displayValue)}" data-item-field="${escapeAttr(field)}">
+      </label>
+    `;
+  }
+
+  handleClick = (event) => {
+    const target = event.composedPath().find((node) => node?.dataset?.selectKind || node?.dataset?.addKind);
+    if (!target) {
+      return;
+    }
+
+    if (target.dataset.selectKind) {
+      this.selectedKind = target.dataset.selectKind;
+      this.selectedIndex = Number(target.dataset.selectIndex || 0);
+      this.render();
+      return;
+    }
+
+    if (target.dataset.addKind) {
+      this.addItem(target.dataset.addKind);
+    }
+  };
+
+  handleInput = (event) => {
+    const target = event.composedPath().find((node) => node?.dataset?.configField || node?.dataset?.itemField);
+    if (!target) {
+      return;
+    }
+
+    if (target.dataset.configField) {
+      const field = target.dataset.configField;
+      this.config[field] = target.type === 'checkbox' ? target.checked : target.value;
+      this.configChanged();
+      return;
+    }
+
+    const item = this.selectedItem;
+    if (!item) {
+      return;
+    }
+
+    const field = target.dataset.itemField;
+    const numericFields = ['x', 'y', 'width', 'height'];
+    item[field] = numericFields.includes(field) ? Number(target.value) : target.value;
+    this.configChanged();
+  };
+
+  addItem(kind) {
+    if (kind === 'rooms') {
+      this.config.floorplan_rooms = [...(this.config.floorplan_rooms || []), { label: 'Neuer Raum', room: this.config.default_room || 'living_room', x: 50, y: 50, width: 18, height: 14 }];
+    } else {
+      this.config.floorplan_entities = [...(this.config.floorplan_entities || []), { name: 'Neue Entität', entity: '', icon: 'mdi:gesture-tap-button', x: 50, y: 50, width: 14, height: 7 }];
+    }
+    this.selectedKind = kind;
+    this.selectedIndex = (kind === 'rooms' ? this.config.floorplan_rooms : this.config.floorplan_entities).length - 1;
+    this.configChanged();
+  }
+
+  configChanged({ render = true } = {}) {
+    const config = { ...this.config };
+    this.dispatchEvent(new CustomEvent('config-changed', { bubbles: true, composed: true, detail: { config } }));
+    if (render) {
+      this.render();
+    }
+  }
+
+  ensureSelection() {
+    const items = this.selectedKind === 'entities' ? this.config.floorplan_entities : this.config.floorplan_rooms;
+    if (items?.[this.selectedIndex]) {
+      return;
+    }
+    if (this.config.floorplan_rooms?.length) {
+      this.selectedKind = 'rooms';
+      this.selectedIndex = 0;
+    } else if (this.config.floorplan_entities?.length) {
+      this.selectedKind = 'entities';
+      this.selectedIndex = 0;
+    }
+  }
+
+  get selectedItem() {
+    this.ensureSelection();
+    return (this.selectedKind === 'entities' ? this.config.floorplan_entities : this.config.floorplan_rooms)?.[this.selectedIndex];
+  }
+
+  get styles() {
+    return `
+      :host { display: block; color: var(--primary-text-color); }
+      .editor-shell { display: grid; gap: 14px; }
+      .editor-head, .editor-card { display: grid; gap: 12px; padding: 14px; border-radius: 14px; background: var(--card-background-color, rgba(20, 24, 57, .08)); border: 1px solid var(--divider-color, rgba(127, 127, 127, .18)); }
+      .editor-head strong { font-size: 16px; }
+      .editor-head small, .hint, small { color: var(--secondary-text-color); font-size: 12px; line-height: 1.4; }
+      h3 { margin: 0; font-size: 14px; }
+      .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .field { display: grid; gap: 6px; min-width: 0; font-size: 12px; font-weight: 700; color: var(--secondary-text-color); }
+      .field input { min-width: 0; height: 36px; box-sizing: border-box; border: 1px solid var(--divider-color, rgba(127, 127, 127, .25)); border-radius: 8px; padding: 0 10px; background: var(--secondary-background-color, transparent); color: var(--primary-text-color); }
+      .toggle { grid-template-columns: auto 1fr; align-items: center; font-weight: 500; }
+      .toggle input { width: 18px; height: 18px; padding: 0; }
+      .floorplan-workspace { position: relative; width: 100%; aspect-ratio: 1000 / 620; min-height: 300px; border-radius: 18px; overflow: hidden; background: radial-gradient(circle at center, rgba(44, 156, 255, .16), rgba(12, 15, 36, .62)); }
+      .editor-floorplan-image, .editor-floorplan-svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+      .editor-floorplan-svg { color: rgba(255,255,255,.9); }
+      .editor-floorplan-svg .floorplan-wall { fill: none; stroke: rgba(224, 228, 255, .72); stroke-width: 8; stroke-linecap: square; stroke-linejoin: miter; }
+      .editor-floorplan-svg .floorplan-door { fill: none; stroke: rgba(12, 15, 36, .95); stroke-width: 11; stroke-linecap: round; }
+      .editor-floorplan-svg text { fill: currentColor; font-size: 34px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: rgba(10, 12, 30, .9); stroke-width: 4px; }
+      .workspace-room, .workspace-entity { position: absolute; transform: translate(-50%, -50%); box-sizing: border-box; }
+      .workspace-room { border-radius: 14px; border: 1px solid rgba(44, 156, 255, .65); background: rgba(44, 156, 255, .16); color: white; font-size: 12px; font-weight: 900; }
+      .workspace-entity { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; padding: 6px 9px; border-radius: 999px; border: 1px solid rgba(169, 181, 232, .5); background: rgba(13, 17, 43, .82); color: white; font-size: 11px; font-weight: 800; }
+      .workspace-entity ha-icon { width: var(--floorplan-entity-icon-size, 18px); height: var(--floorplan-entity-icon-size, 18px); }
+      .workspace-room.active, .workspace-entity.active { outline: 3px solid #f29a37; outline-offset: 3px; z-index: 3; }
+      .list-section { display: grid; gap: 10px; min-width: 0; }
+      .item-list { display: grid; gap: 6px; max-height: 160px; overflow: auto; }
+      .item-list button, .secondary { min-height: 34px; border: 0; border-radius: 9px; padding: 7px 10px; background: rgba(44, 156, 255, .12); color: var(--primary-text-color); text-align: left; font-weight: 700; }
+      .item-list button.active { background: rgba(44, 156, 255, .34); }
+      .secondary { text-align: center; background: rgba(242, 154, 55, .22); }
+      .control-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .number-field { grid-template-columns: 56px 1fr 72px; align-items: center; }
+      .number-field span { grid-column: 1; }
+      .number-field input[type="range"] { grid-column: 2; padding: 0; border: 0; accent-color: #2c9cff; }
+      .number-field input[type="number"] { grid-column: 3; }
+      textarea { width: 100%; min-height: 220px; box-sizing: border-box; border-radius: 10px; padding: 12px; border: 1px solid var(--divider-color, rgba(127, 127, 127, .25)); background: var(--secondary-background-color, transparent); color: var(--primary-text-color); font-family: monospace; font-size: 12px; }
+      @media (max-width: 720px) { .grid-2, .control-grid { grid-template-columns: 1fr; } .floorplan-workspace { min-height: 220px; } }
+    `;
+  }
+}
 
 const ROOM_SPECS = [
   { id: 'bedroom', title: 'SCHLAFZIMMER', subtitle: 'Ruhen', icon: 'mdi:bed-king-outline', prefix: 'bedroom', image: '/local/neo-dashboard/bedroom.png' },
@@ -1226,6 +1766,7 @@ const DEFAULT_CONFIG = {
   home_title: 'STARTSEITE',
   home_subtitle: 'Wohnung',
   apartment_floorplan_image: '/local/community/ha-dashboard-assets/home.svg',
+  floorplan_editor: true,
   presence: [
     { name: 'Person 1', entity: 'person.person_1', icon: 'mdi:account', tap_action: { action: 'more-info', entity: 'person.person_1' } },
     { name: 'Person 2', entity: 'person.person_2', icon: 'mdi:account-outline', tap_action: { action: 'more-info', entity: 'person.person_2' } },
@@ -1238,11 +1779,11 @@ const DEFAULT_CONFIG = {
     { label: 'Schlafzimmer', room: 'bedroom', x: 10, y: 74, width: 30, height: 34 },
   ],
   floorplan_entities: [
-    { name: 'Wohnzimmer Licht', entity: 'light.living_room_all', icon: 'mdi:lightbulb-group', x: 72, y: 36, tap_action: { action: 'toggle', entity: 'light.living_room_all' } },
-    { name: 'Küche Temperatur', entity: 'sensor.kitchen_temperature', icon: 'mdi:thermometer', x: 48, y: 28 },
-    { name: 'Büro Bewegung', entity: 'binary_sensor.office_motion', icon: 'mdi:motion-sensor', x: 24, y: 30 },
-    { name: 'Haustür', entity: 'binary_sensor.living_room_door', icon: 'mdi:door', x: 59, y: 57 },
-    { name: 'Schlafzimmer Licht', entity: 'light.bedroom_all', icon: 'mdi:lightbulb-outline', x: 70, y: 73, tap_action: { action: 'toggle', entity: 'light.bedroom_all' } },
+    { name: 'Wohnzimmer Licht', entity: 'light.living_room_all', icon: 'mdi:lightbulb-group', x: 72, y: 36, width: 14, height: 7, tap_action: { action: 'toggle', entity: 'light.living_room_all' } },
+    { name: 'Küche Temperatur', entity: 'sensor.kitchen_temperature', icon: 'mdi:thermometer', x: 48, y: 28, width: 13, height: 7 },
+    { name: 'Büro Bewegung', entity: 'binary_sensor.office_motion', icon: 'mdi:motion-sensor', x: 24, y: 30, width: 12, height: 7 },
+    { name: 'Haustür', entity: 'binary_sensor.living_room_door', icon: 'mdi:door', x: 59, y: 57, width: 10, height: 7 },
+    { name: 'Schlafzimmer Licht', entity: 'light.bedroom_all', icon: 'mdi:lightbulb-outline', x: 70, y: 73, width: 14, height: 7, tap_action: { action: 'toggle', entity: 'light.bedroom_all' } },
   ],
   default_room: 'living_room',
   default_page: 'home',
@@ -1534,8 +2075,9 @@ function mergeConfig(config) {
     home_systems: config.home_systems || DEFAULT_CONFIG.home_systems || config.room_overview_systems || DEFAULT_CONFIG.room_overview_systems,
     home_metrics: config.home_metrics || DEFAULT_CONFIG.home_metrics || config.room_overview_metrics || DEFAULT_CONFIG.room_overview_metrics,
     presence: config.presence || DEFAULT_CONFIG.presence,
-    floorplan_rooms: config.floorplan_rooms || DEFAULT_CONFIG.floorplan_rooms,
-    floorplan_entities: config.floorplan_entities || DEFAULT_CONFIG.floorplan_entities,
+    floorplan_editor: config.floorplan_editor ?? DEFAULT_CONFIG.floorplan_editor,
+    floorplan_rooms: cloneList(config.floorplan_rooms || DEFAULT_CONFIG.floorplan_rooms),
+    floorplan_entities: cloneList(config.floorplan_entities || DEFAULT_CONFIG.floorplan_entities),
     room_overview_top_tabs: config.room_overview_top_tabs || DEFAULT_CONFIG.room_overview_top_tabs,
     room_overview_systems: config.room_overview_systems || DEFAULT_CONFIG.room_overview_systems,
     room_overview_metrics: config.room_overview_metrics || DEFAULT_CONFIG.room_overview_metrics,
@@ -1563,6 +2105,105 @@ function stateLabel(hass, item) {
 
   const state = hass.states[item.entity];
   return `${state.state}${state.attributes?.unit_of_measurement ? ` ${state.attributes.unit_of_measurement}` : ''}`;
+}
+
+function editorInlineFloorplan() {
+  return `
+    <svg class="editor-floorplan-svg" viewBox="0 0 1000 620" role="img" aria-label="2D Wohnungsplan">
+      <rect class="floorplan-wall" x="90" y="70" width="760" height="470"></rect>
+      <path class="floorplan-wall" d="M390 70v240M575 70v240M90 310h180M335 310h205M575 350h275M280 540V430h190v110M470 540V430h95v110M850 250h55v130h-55M850 410h45v75h-45"></path>
+      <path class="floorplan-door" d="M270 310h65M540 310h35M90 395h75M220 395h180M470 395h95"></path>
+      <text x="225" y="195">Büro</text>
+      <text x="465" y="195">Küche</text>
+      <text x="680" y="185">Wohnzimmer</text>
+      <text x="305" y="485">Badezimmer</text>
+      <text x="660" y="455">Schlafzimmer</text>
+    </svg>
+  `;
+}
+
+function cloneList(items) {
+  return (items || []).map((item) => ({ ...item }));
+}
+
+function floorplanYaml(config) {
+  const lines = [
+    `apartment_floorplan_image: ${config.apartment_floorplan_image || ''}`,
+    'floorplan_rooms:',
+    ...yamlList(config.floorplan_rooms || [], ['label', 'room', 'x', 'y', 'width', 'height']),
+    'floorplan_entities:',
+    ...yamlList(config.floorplan_entities || [], ['name', 'entity', 'icon', 'x', 'y', 'width', 'height', 'icon_size']),
+  ];
+
+  return `${lines.join('\n')}\n`;
+}
+
+function yamlList(items, fields) {
+  if (!items.length) {
+    return ['  []'];
+  }
+
+  return items.flatMap((item) => fields
+    .filter((field) => item[field] !== undefined && item[field] !== null && item[field] !== '')
+    .map((field, index) => `${index === 0 ? '  -' : '  '} ${field}: ${yamlValue(item[field])}`));
+}
+
+function yamlValue(value) {
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  return String(value).includes(':') || String(value).includes('#')
+    ? JSON.stringify(String(value))
+    : String(value);
+}
+
+function floorplanElementStyle(item, defaults = {}, customProperties = {}) {
+  const declarations = [
+    ['left', cssLength(item.x ?? item.left, defaults.x)],
+    ['top', cssLength(item.y ?? item.top, defaults.y)],
+    ['width', cssLength(item.width, defaults.width)],
+    ['height', cssLength(item.height, defaults.height)],
+    ['min-width', cssLength(item.min_width)],
+    ['min-height', cssLength(item.min_height)],
+    ['max-width', cssLength(item.max_width)],
+    ['max-height', cssLength(item.max_height)],
+  ];
+
+  Object.entries(customProperties).forEach(([property, value]) => {
+    declarations.push([property, value]);
+  });
+
+  return declarations
+    .filter(([, value]) => value)
+    .map(([property, value]) => `${property}:${value}`)
+    .join(';');
+}
+
+function cssLength(value, fallback) {
+  const resolved = value ?? fallback;
+  if (resolved === undefined || resolved === null || resolved === '') {
+    return '';
+  }
+
+  if (typeof resolved === 'number') {
+    return Number.isFinite(resolved) ? `${resolved}%` : '';
+  }
+
+  const normalized = String(resolved).trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if (/^-?\d+(?:\.\d+)?$/.test(normalized)) {
+    return `${normalized}%`;
+  }
+
+  if (/^-?\d+(?:\.\d+)?(?:%|px|rem|em|vh|vw|vmin|vmax|ch|cm|mm|in|pt|pc)$/i.test(normalized)) {
+    return normalized;
+  }
+
+  return '';
 }
 
 function parseAktion(value) {
@@ -1596,6 +2237,10 @@ function cssUrl(value) {
 
 if (!customElements.get('ha-neo-dashboard')) {
   customElements.define('ha-neo-dashboard', HaNeoDashboard);
+}
+
+if (!customElements.get('ha-neo-dashboard-editor')) {
+  customElements.define('ha-neo-dashboard-editor', HaNeoDashboardEditor);
 }
 
 window.customCards = window.customCards || [];
