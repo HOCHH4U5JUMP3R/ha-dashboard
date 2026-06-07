@@ -119,7 +119,7 @@ views:
             entity: person.person_2
             icon: mdi:account-outline
         # Optional: eigenes PNG/SVG unter /config/www/neo-dashboard/ ablegen.
-        apartment_floorplan_image: ''
+        apartment_floorplan_image: '/local/community/ha-dashboard-assets/home.svg'
         floorplan_rooms:
           - label: Büro
             room: office
