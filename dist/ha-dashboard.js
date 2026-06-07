@@ -106,7 +106,6 @@ class HaNeoDashboard extends HTMLElement {
 
   renderHome() {
     return `
-      ${this.renderTitle(this.config.home_title || 'STARTSEITE', this.config.home_subtitle || 'Wohnung')}
       <section class="floorplan-wrap">
         ${this.config.apartment_floorplan_image ? `<img class="floorplan-image" src="${escapeAttr(this.config.apartment_floorplan_image)}" alt="${escapeAttr(this.config.home_title || 'Wohnungsplan')}">` : this.renderInlineFloorplan()}
         ${(this.config.floorplan_rooms || []).map((room) => this.renderFloorplanRoom(room)).join('')}
@@ -275,7 +274,6 @@ class HaNeoDashboard extends HTMLElement {
   renderÜbersicht() {
     const cfg = this.activeConfig;
     return `
-      ${this.renderTitle(cfg.title, cfg.subtitle)}
       <div class="room-image-wrap">
         <img class="room-image" src="${escapeAttr(cfg.image)}" alt="${escapeAttr(cfg.title)}">
         ${cfg.scene_entity ? `
@@ -294,7 +292,6 @@ class HaNeoDashboard extends HTMLElement {
 
   renderRooms() {
     return `
-      ${this.renderTitle('RAUMÜBERSICHT', 'Wohnung')}
       <section class="rooms-grid">
         ${this.config.rooms.map((room) => this.renderRoomCard(room)).join('')}
       </section>
@@ -328,19 +325,10 @@ class HaNeoDashboard extends HTMLElement {
     `;
   }
 
-  renderTitle(title, subtitle) {
-    return `
-      <div class="room-title">
-        <h2>${escapeHtml(title)}</h2>
-        <p>${escapeHtml(subtitle || '')}</p>
-      </div>
-    `;
-  }
 
 
   renderCustomCardPage(page, className = 'custom-card-grid') {
     return `
-      ${this.renderTitle(page?.title || this.activeConfig.title, page?.subtitle || this.activeConfig.subtitle)}
       <section class="${escapeAttr(className)}">
         ${(page?.cards || []).map((card, index) => `<div class="lovelace-card-host" data-lovelace-card="${index}"></div>`).join('')}
       </section>
@@ -406,7 +394,6 @@ class HaNeoDashboard extends HTMLElement {
     }
 
     return `
-      ${this.renderTitle(page?.title || this.activeConfig.title, page?.subtitle || this.activeConfig.subtitle)}
       <section class="page-grid page-grid-wide">
         ${(page?.tiles || []).map((tile) => this.renderTile(tile)).join('')}
       </section>
@@ -421,7 +408,6 @@ class HaNeoDashboard extends HTMLElement {
     const heating = page.tiles?.find((tile) => resolveRoomValue(tile, this.activeRoom).entity?.startsWith('climate.')) || { name: 'Heizung', entity: climateEntity, icon: 'mdi:radiator' };
 
     return `
-      ${this.renderTitle(page?.title || 'KLIMA', page?.subtitle || 'Heizung und Luft')}
       <section class="full-page-grid climate-layout">
         ${this.renderHistoryPanel('Temperaturverlauf', tempEntity, 'mdi:thermometer', '°C')}
         ${this.renderHistoryPanel('Luftfeuchtigkeit', humidityEntity, 'mdi:water-percent', '%')}
@@ -434,7 +420,6 @@ class HaNeoDashboard extends HTMLElement {
 
   renderLightsPage(page) {
     return `
-      ${this.renderTitle(page?.title || 'LICHTER', page?.subtitle || 'Raumstimmung')}
       <section class="full-page-grid lights-layout">
         ${(page?.tiles || []).filter((tile) => resolveRoomValue(tile, this.activeRoom).entity?.startsWith('light.')).map((tile) => this.renderLightControl(tile)).join('')}
       </section>
@@ -450,7 +435,6 @@ class HaNeoDashboard extends HTMLElement {
     }) || [];
 
     return `
-      ${this.renderTitle(page?.title || 'SICHERHEIT', page?.subtitle || 'Kamera, Tür und Fenster')}
       <section class="full-page-grid security-layout">
         <div class="span-2">${this.renderCameraPanel(resolveRoomValue(cameraTile, this.activeRoom))}</div>
         ${contactTiles.map((tile) => this.renderTile(tile)).join('')}
@@ -460,7 +444,6 @@ class HaNeoDashboard extends HTMLElement {
 
   renderMediaPage(page) {
     return `
-      ${this.renderTitle(page?.title || 'MEDIEN', page?.subtitle || 'Xbox, PlayStation und Apple TV')}
       <section class="full-page-grid media-layout">
         ${(page?.tiles || []).map((tile) => this.renderDeviceControl(resolveRoomValue(tile, this.activeRoom))).join('')}
       </section>
@@ -469,7 +452,6 @@ class HaNeoDashboard extends HTMLElement {
 
   renderServerPage(page) {
     return `
-      ${this.renderTitle(page?.title || 'SERVER', page?.subtitle || 'MediaCenter22 und Dienste')}
       <section class="server-layout">
         ${(page?.tiles || []).map((tile) => this.renderServerTile(tile)).join('')}
       </section>
@@ -951,9 +933,6 @@ class HaNeoDashboard extends HTMLElement {
       .server-status-badge.blue { color: var(--neo-blue); }
       .server-status-badge.purple { color: #a274ff; }
       .server-status-badge.yellow { color: #f0c33c; }
-      .room-title { width: 190px; margin: 0 auto 38px; border: 1px solid rgba(169, 181, 232, .38); border-radius: 7px; padding: 12px 8px 10px; text-align: center; background: rgba(12, 15, 36, .55); }
-      .room-title h2 { margin: 0; font-size: 22px; font-weight: 500; letter-spacing: .03em; }
-      .room-title p { margin: 10px 0 0; color: var(--neo-muted); font-size: 11px; }
       .room-image-wrap { position: relative; width: min(620px, 92%); filter: drop-shadow(0 40px 42px rgba(95, 125, 255, .28)); }
       .room-image { display: block; width: 100%; min-height: 260px; object-fit: contain; }
       .scene-button { position: absolute; top: 52%; left: 50%; transform: translate(-50%, -50%); min-width: 92px; min-height: 44px; border-radius: 6px; background: rgba(255, 255, 255, .92); color: #15172d; font-size: 12px; font-weight: 800; }
@@ -1070,7 +1049,6 @@ class HaNeoDashboard extends HTMLElement {
         .tabs { margin-bottom: 24px; }
         .systems { gap: 18px; margin-bottom: 32px; }
         .metrics { gap: 18px; padding-top: 24px; }
-        .room-title { margin-bottom: 30px; }
         .room-image-wrap { width: min(520px, 92%); }
         .room-image { min-height: 230px; max-height: 330px; }
         .quick-chips { margin-top: 24px; padding: 18px 48px; }
@@ -1100,7 +1078,6 @@ class HaNeoDashboard extends HTMLElement {
         .floorplan-wrap { width: 100%; }
         .page-grid, .rooms-grid, .page-grid-wide, .full-page-grid, .server-layout, .custom-card-grid, .server-custom-card-grid { grid-template-columns: 1fr; }
         .span-2, .span-3, .span-4 { grid-column: auto; }
-        .room-title { margin-bottom: 28px; }
         .bottom-nav { position: static; transform: none; width: 100%; overflow-x: auto; justify-self: stretch; }
       }
     `;
