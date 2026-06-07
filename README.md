@@ -72,6 +72,9 @@ Alle sichtbaren Bereiche sind über YAML konfigurierbar:
 | `apartment_floorplan_image` | Startseiten-/Floorplan-Hintergrundbild; standardmäßig `/local/community/ha-dashboard-assets/home.svg`, leer lassen für den integrierten SVG-Plan. |
 | `floorplan_rooms` | Raum-Hotspots auf dem Grundriss, die den aktiven Raum wechseln; Position und Größe sind über `x`, `y`, `width` und `height` konfigurierbar. |
 | `floorplan_entities` | Frei platzierbare Entity-Chips auf dem Grundriss mit `x`, `y`, `width`, `height`, optionalem `icon_size` und normaler `tap_action`; diese Werte können direkt über den visuellen Karten-Editor oder über **ANPASSEN/Plan anpassen** in der Karte verändert werden. |
+| `weather_entity` / `home_weather` | Wetter-Widget in der linken Seitenleiste, z. B. `weather.home`; Forecast-Daten werden angezeigt, wenn die Weather-Entity sie bereitstellt. |
+| `calendar_entity` / `home_calendar` | Kalender-Widget unter dem Wetter, z. B. eine iCloud-Kalender-Entity aus Home Assistant (`calendar.dein_icloud_kalender`). |
+| `left_sidebar_widgets` | Reihenfolge der linken Widgets, standardmäßig `['weather', 'calendar']`; mit `false` blendest du sie aus. |
 | `top_tabs` | Reiter links oben auf Raumseiten, z. B. System- und Wartungsaktionen. |
 | `room_overview_top_tabs` | Eigene Startseiten-Reiter, standardmäßig Kalender, Todo und Wetter. |
 | `systems` | Linke Statusliste mit Icon, Entity, Label, Farbe und Aktion auf Raumseiten. |
@@ -86,7 +89,23 @@ Alle sichtbaren Bereiche sind über YAML konfigurierbar:
 
 ## Startseite, Wohnungsplan und Räume
 
-Die Card startet standardmäßig mit `default_page: home`. Die Startseite zeigt dein Startseiten-/Floorplan-Hintergrundbild im Neo-Design. Beim Hinzufügen oder Bearbeiten der Karte öffnet Home Assistant jetzt einen eigenen visuellen **HA Neo Dashboard anpassen**-Editor mit großer Floorplan-Arbeitsfläche, Listen für Räume und Entitäten, Live-Reglern und fertiger YAML-Ausgabe. Damit bist du nicht mehr auf die schmale Standard-Vorschau neben dem YAML-Editor angewiesen. Zusätzlich gibt es auf der Dashboard-Startseite oben rechts den Button **ANPASSEN** und im Floorplan **Plan anpassen**. Dort kannst du das Floorplan-Bild eintragen, Räume und Entitäten auswählen, Name/Entity/Icon bearbeiten und `x`, `y`, `width`, `height` sowie bei Entitäten `icon_size` live ändern. Zahlenwerte werden als Prozentwerte interpretiert, du kannst aber auch CSS-Längen wie `120px`, `8rem` oder `12%` in YAML verwenden. Ohne eigenes Bild wird ein integrierter SVG-Grundriss verwendet; mit `apartment_floorplan_image` ist dein Plan unter `/local/community/ha-dashboard-assets/home.svg` vorkonfiguriert.
+Die Card startet standardmäßig mit `default_page: home`. Die Startseite zeigt dein Startseiten-/Floorplan-Hintergrundbild im Neo-Design. Beim Hinzufügen oder Bearbeiten der Karte öffnet Home Assistant jetzt einen eigenen visuellen **HA Neo Dashboard anpassen**-Editor mit großer Floorplan-Arbeitsfläche, Listen für Räume und Entitäten, Live-Reglern und fertiger YAML-Ausgabe. Damit bist du nicht mehr auf die schmale Standard-Vorschau neben dem YAML-Editor angewiesen. Zusätzlich gibt es auf der Dashboard-Startseite oben rechts den Button **ANPASSEN** und im Floorplan **Plan anpassen**. Dort kannst du das Floorplan-Bild eintragen, Räume und Entitäten auswählen, Name/Entity/Icon bearbeiten und `x`, `y`, `width`, `height` sowie bei Entitäten `icon_size` live ändern. Im Bearbeitungsmodus lassen sich Räume und Entitäten direkt per Drag & Drop verschieben; das Einstellpanel steht neben bzw. unter dem Floorplan und verdeckt ihn nicht. Raum-Rechtecke haben bewusst eckige Kanten und können über die Ecke unten rechts größer oder kleiner gezogen werden. Ausgewählte Floorplan-Räume oder Entitäten entfernst du über **Ausgewählten Eintrag entfernen**. Änderungen aus dem Dashboard werden zusätzlich als lokaler Entwurf gemerkt und beim Öffnen des visuellen Karten-Editors wieder geladen; dauerhaft in Home Assistant gespeichert werden sie, wenn du dort speicherst, bei YAML-Dashboards musst du den YAML-Block kopieren. Zahlenwerte werden als Prozentwerte interpretiert, du kannst aber auch CSS-Längen wie `120px`, `8rem` oder `12%` in YAML verwenden. Ohne eigenes Bild wird ein integrierter SVG-Grundriss verwendet; mit `apartment_floorplan_image` ist dein Plan unter `/local/community/ha-dashboard-assets/home.svg` vorkonfiguriert.
+
+
+Die linke Seitenleiste zeigt standardmäßig zuerst ein Wetter-Widget und darunter ein Kalender-Widget. Für iCloud musst du in Home Assistant die iCloud-/Kalender-Integration einrichten und anschließend die erzeugte `calendar.*`-Entity hier eintragen:
+
+```yaml
+weather_entity: weather.home
+calendar_entity: calendar.familie_icloud
+home_weather:
+  title: Wetter
+  entity: weather.home
+  forecast_count: 4
+home_calendar:
+  title: Kalender
+  subtitle: iCloud Kalender
+  entity: calendar.familie_icloud
+```
 
 Die vorkonfigurierten Räume sind:
 
