@@ -69,7 +69,7 @@ Alle sichtbaren Bereiche sind über YAML konfigurierbar:
 | `background_image` | Eigenes Vollbild-Hintergrundbild hinter Glow und Panels. |
 | `image` | Zentraler Wohnzimmer-/Raum-Render auf der Übersichtsseite. |
 | `presence` | Personen/Anwesenheits-Entities in der oberen Leiste. |
-| `apartment_floorplan_image` | Optionales eigenes 2D-Grundrissbild für die Startseite; ohne Bild wird ein integrierter SVG-Plan genutzt. |
+| `apartment_floorplan_image` | Startseiten-/Floorplan-Hintergrundbild; standardmäßig `/local/community/ha-dashboard-assets/home.svg`, leer lassen für den integrierten SVG-Plan. |
 | `floorplan_rooms` | Unsichtbare Raum-Hotspots auf dem Grundriss, die den aktiven Raum wechseln. |
 | `floorplan_entities` | Frei platzierbare Entity-Chips auf dem Grundriss mit `x`/`y` in Prozent und normaler `tap_action`. |
 | `top_tabs` | Reiter links oben auf Raumseiten, z. B. System- und Wartungsaktionen. |
@@ -86,7 +86,7 @@ Alle sichtbaren Bereiche sind über YAML konfigurierbar:
 
 ## Startseite, Wohnungsplan und Räume
 
-Die Card startet standardmäßig mit `default_page: home`. Die Startseite zeigt einen 2D-Wohnungsplan im Neo-Design. Räume und Entity-Chips werden bewusst über einfache Prozent-Koordinaten in YAML gesetzt, damit du sie in Home Assistant schnell anpassen kannst. Ohne eigenes Bild wird ein integrierter SVG-Grundriss verwendet; mit `apartment_floorplan_image` kannst du deinen eigenen Plan unter `/local/neo-dashboard/...` verwenden.
+Die Card startet standardmäßig mit `default_page: home`. Die Startseite zeigt dein Startseiten-/Floorplan-Hintergrundbild im Neo-Design. Räume und Entity-Chips werden bewusst über einfache Prozent-Koordinaten in YAML gesetzt, damit du sie in Home Assistant schnell anpassen kannst. Ohne eigenes Bild wird ein integrierter SVG-Grundriss verwendet; mit `apartment_floorplan_image` ist dein Plan unter `/local/community/ha-dashboard-assets/home.svg` vorkonfiguriert.
 
 Die vorkonfigurierten Räume sind:
 
@@ -141,7 +141,7 @@ presence:
     tap_action:
       action: toggle
       entity: input_boolean.guest_mode
-apartment_floorplan_image: /local/neo-dashboard/apartment-floorplan.png
+apartment_floorplan_image: /local/community/ha-dashboard-assets/home.svg
 floorplan_rooms:
   - label: Wohnzimmer
     room: living_room

@@ -23,6 +23,8 @@ views:
         all_lights_entity: light.living_room_all
         home_title: STARTSEITE
         home_subtitle: Wohnung
+        # Startseiten-/Floorplan-Hintergrund aus deinem HACS-Asset-Pfad.
+        apartment_floorplan_image: /local/community/ha-dashboard-assets/home.svg
         presence:
           - name: Person 1
             entity: person.person_1

@@ -118,7 +118,7 @@ views:
           - name: Person 2
             entity: person.person_2
             icon: mdi:account-outline
-        # Optional: eigenes PNG/SVG unter /config/www/neo-dashboard/ ablegen.
+        # Startseiten-/Floorplan-Hintergrund aus deinem HACS-Asset-Pfad.
         apartment_floorplan_image: /local/community/ha-dashboard-assets/home.svg
         floorplan_rooms:
           - label: Büro

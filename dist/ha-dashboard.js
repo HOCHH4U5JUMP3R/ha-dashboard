@@ -1248,7 +1248,7 @@ const DEFAULT_CONFIG = {
   all_lights_entity: 'light.living_room_all',
   home_title: 'STARTSEITE',
   home_subtitle: 'Wohnung',
-  apartment_floorplan_image: '',
+  apartment_floorplan_image: '/local/community/ha-dashboard-assets/home.svg',
   presence: [
     { name: 'Person 1', entity: 'person.person_1', icon: 'mdi:account', tap_action: { action: 'more-info', entity: 'person.person_1' } },
     { name: 'Person 2', entity: 'person.person_2', icon: 'mdi:account-outline', tap_action: { action: 'more-info', entity: 'person.person_2' } },
