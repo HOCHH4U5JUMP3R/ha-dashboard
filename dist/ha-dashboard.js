@@ -1555,6 +1555,7 @@ class HaNeoDashboardEditor extends HTMLElement {
     this.config = this.normalizeConfig(config || {});
     this.selectedKind = this.selectedKind || 'rooms';
     this.selectedIndex = this.selectedIndex || 0;
+    this.editorTab = this.editorTab || 'sidebar';
     this.render();
     if (this.loadedFloorplanDraft && !this.floorplanDraftAnnounced) {
       this.floorplanDraftAnnounced = true;
@@ -1618,56 +1619,203 @@ class HaNeoDashboardEditor extends HTMLElement {
     }
 
     this.ensureSelection();
-    const selected = this.selectedItem;
-    const selectedTitle = this.selectedKind === 'entities' ? 'Entität bearbeiten' : 'Raum bearbeiten';
 
     this.shadowRoot.innerHTML = `
       <style>${this.styles}</style>
       <section class="editor-shell">
         <header class="editor-head">
           <strong>HA Neo Dashboard anpassen</strong>
-          <small>Der Editor ist absichtlich hier im Karten-Dialog, damit du nicht im YAML suchen musst.</small>
+          <small>Der Editor ist in Tabs aufgeteilt. Eingaben werden lokal sofort übernommen und erst beim Verlassen/Bestätigen an Home Assistant gemeldet, damit Textfelder beim Tippen nicht den Fokus verlieren.</small>
         </header>
 
-        ${this.renderSidebarWidgetsCard()}
-
-        <section class="editor-card">
-          <h3>Große Floorplan-Arbeitsfläche</h3>
-          <label class="field wide">
-            <span>Floorplan-Bild</span>
-            <input type="text" value="${escapeAttr(this.config.apartment_floorplan_image || '')}" placeholder="/local/community/ha-dashboard-assets/home.svg" data-config-field="apartment_floorplan_image">
-          </label>
-          <label class="field toggle">
-            <input type="checkbox" ${this.config.floorplan_editor !== false ? 'checked' : ''} data-config-field="floorplan_editor">
-            <span>Button „Plan anpassen“ auch auf dem Dashboard anzeigen</span>
-          </label>
-          <div class="floorplan-workspace">
-            ${this.config.apartment_floorplan_image ? `<img class="editor-floorplan-image" src="${escapeAttr(this.config.apartment_floorplan_image)}" alt="Floorplan">` : editorInlineFloorplan()}
-            ${(this.config.floorplan_rooms || []).map((room, index) => this.renderWorkspaceItem('rooms', room, index)).join('')}
-            ${(this.config.floorplan_entities || []).map((entity, index) => this.renderWorkspaceItem('entities', entity, index)).join('')}
-          </div>
-          <p class="hint">Tipp: Ziehe Räume und Entitäten direkt an die gewünschte Stelle. Bei Räumen kannst du die Ecke unten rechts ziehen, um die Rechtecke zu vergrößern oder zu verkleinern.</p>
-        </section>
-
-        <section class="editor-card grid-2">
-          ${this.renderList('rooms', 'Räume', 'Raum hinzufügen')}
-          ${this.renderList('entities', 'Entitäten', 'Entität hinzufügen')}
-        </section>
-
-        <section class="editor-card">
-          <h3>${escapeHtml(selectedTitle)}</h3>
-          ${selected ? this.renderSelectedControls(selected) : '<p class="hint">Wähle einen Eintrag aus.</p>'}
-        </section>
-
-        <section class="editor-card">
-          <h3>Fertige Floorplan-Konfiguration</h3>
-          <textarea readonly>${escapeHtml(floorplanYaml(this.config))}</textarea>
-          <p class="hint">Home Assistant übernimmt Änderungen im visuellen Karten-Editor automatisch. Bei Bedarf kannst du diesen Block zusätzlich kopieren.</p>
-        </section>
+        ${this.renderEditorTabs()}
+        ${this.renderActiveEditorTab()}
       </section>
     `;
 
     this.hydrateEditorControls();
+  }
+
+  renderEditorTabs() {
+    const tabs = [
+      { id: 'sidebar', label: 'Seitenleiste', icon: 'mdi:view-sidebar' },
+      { id: 'main', label: 'Hauptinhalt', icon: 'mdi:floor-plan' },
+      { id: 'navigation', label: 'Menüleiste unten', icon: 'mdi:dock-bottom' },
+      { id: 'yaml', label: 'YAML', icon: 'mdi:code-braces' },
+    ];
+
+    return `
+      <nav class="editor-tabs" aria-label="Editor-Bereiche">
+        ${tabs.map((tab) => `
+          <button class="editor-tab ${this.editorTab === tab.id ? 'active' : ''}" type="button" data-editor-tab="${escapeAttr(tab.id)}">
+            <ha-icon icon="${escapeAttr(tab.icon)}"></ha-icon>
+            <span>${escapeHtml(tab.label)}</span>
+          </button>
+        `).join('')}
+      </nav>
+    `;
+  }
+
+  renderActiveEditorTab() {
+    if (this.editorTab === 'main') {
+      return this.renderMainEditorTab();
+    }
+    if (this.editorTab === 'navigation') {
+      return this.renderNavigationEditorTab();
+    }
+    if (this.editorTab === 'yaml') {
+      return this.renderYamlEditorTab();
+    }
+
+    return this.renderSidebarWidgetsCard();
+  }
+
+  renderMainEditorTab() {
+    const selected = this.selectedItem;
+    const selectedTitle = this.selectedKind === 'entities' ? 'Entität bearbeiten' : 'Raum bearbeiten';
+
+    return `
+      <section class="editor-card">
+        <h3>Große Floorplan-Arbeitsfläche</h3>
+        <label class="field wide">
+          <span>Floorplan-Bild</span>
+          <input type="text" value="${escapeAttr(this.config.apartment_floorplan_image || '')}" placeholder="/local/community/ha-dashboard-assets/home.svg" data-config-field="apartment_floorplan_image">
+        </label>
+        <label class="field toggle">
+          <input type="checkbox" ${this.config.floorplan_editor !== false ? 'checked' : ''} data-config-field="floorplan_editor">
+          <span>Button „Plan anpassen“ auch auf dem Dashboard anzeigen</span>
+        </label>
+        <div class="floorplan-workspace">
+          ${this.config.apartment_floorplan_image ? `<img class="editor-floorplan-image" src="${escapeAttr(this.config.apartment_floorplan_image)}" alt="Floorplan">` : editorInlineFloorplan()}
+          ${(this.config.floorplan_rooms || []).map((room, index) => this.renderWorkspaceItem('rooms', room, index)).join('')}
+          ${(this.config.floorplan_entities || []).map((entity, index) => this.renderWorkspaceItem('entities', entity, index)).join('')}
+        </div>
+        <p class="hint">Tipp: Ziehe Räume und Entitäten direkt an die gewünschte Stelle. Bei Räumen kannst du die Ecke unten rechts ziehen, um die Rechtecke zu vergrößern oder zu verkleinern.</p>
+      </section>
+
+      <section class="editor-card grid-2">
+        ${this.renderList('rooms', 'Räume', 'Raum hinzufügen')}
+        ${this.renderList('entities', 'Entitäten', 'Entität hinzufügen')}
+      </section>
+
+      <section class="editor-card">
+        <h3>${escapeHtml(selectedTitle)}</h3>
+        ${selected ? this.renderSelectedControls(selected) : '<p class="hint">Wähle einen Eintrag aus.</p>'}
+      </section>
+    `;
+  }
+
+  renderNavigationEditorTab() {
+    return `
+      <section class="editor-card">
+        <h3>Menüleiste unten</h3>
+        <p class="hint">Dieser Tab ist die Basis für die nächsten visuellen Einstellungen der unteren Navigation. Aktuell kannst du hier die Startseite wählen und siehst die vorhandenen Menüpunkte.</p>
+        <label class="field">
+          <span>Standardseite</span>
+          <select data-config-field="default_page">
+            ${(this.config.pages || []).map((page) => `<option value="${escapeAttr(page.id)}" ${page.id === this.config.default_page ? 'selected' : ''}>${escapeHtml(page.label || page.title || page.id)}</option>`).join('')}
+          </select>
+        </label>
+        <div class="nav-preview-list">
+          ${(this.config.pages || []).map((page) => `
+            <span class="nav-preview-item">
+              <ha-icon icon="${escapeAttr(page.icon || 'mdi:view-dashboard-outline')}"></ha-icon>
+              <b>${escapeHtml(page.label || page.title || page.id)}</b>
+              <small>${escapeHtml(page.id)}</small>
+            </span>
+          `).join('')}
+        </div>
+      </section>
+    `;
+
+    this.hydrateEditorControls();
+  }
+
+  renderSidebarWidgetsCard() {
+    const widgets = Array.isArray(this.config.left_sidebar_widgets) ? this.config.left_sidebar_widgets : (this.config.home_sidebar_widgets || []);
+    const weather = this.config.home_weather || {};
+    const calendar = this.config.home_calendar || {};
+
+    return `
+      <section class="editor-card">
+        <h3>Seitenleiste: Wetter & Kalender</h3>
+        <p class="hint">Diese Kacheln kannst du jetzt direkt im visuellen Karten-Editor konfigurieren. Die Entity-Auswahl speichert Home Assistant zusammen mit der Karten-Konfiguration.</p>
+        <div class="widget-toggles">
+          ${this.widgetToggle('weather', 'Wetter-Kachel anzeigen', widgets.includes('weather'))}
+          ${this.widgetToggle('calendar', 'Kalender-Kachel anzeigen', widgets.includes('calendar'))}
+        </div>
+        <div class="widget-grid">
+          <section class="widget-editor">
+            <h4><ha-icon icon="mdi:weather-partly-cloudy"></ha-icon> Wetter</h4>
+            ${this.entityControl('weather_entity', 'Wetter-Entity', this.config.weather_entity || '', 'weather')}
+            ${this.textControl('weather_title', 'Titel', weather.title || 'Wetter', 'weather')}
+            ${this.textControl('weather_label', 'Eigene Zustandszeile', weather.label || '', 'weather')}
+            ${this.textControl('weather_icon', 'Icon', weather.icon || '', 'weather')}
+            ${this.numberControl('weather_forecast_count', 'Vorhersage-Tage', weather.forecast_count ?? 4, 'weather', { min: 0, max: 7, step: 1 })}
+          </section>
+          <section class="widget-editor">
+            <h4><ha-icon icon="mdi:calendar-month"></ha-icon> Kalender</h4>
+            ${this.entityControl('calendar_entity', 'Kalender-Entity', this.config.calendar_entity || '', 'calendar')}
+            ${this.textControl('calendar_title', 'Titel', calendar.title || 'Kalender', 'calendar')}
+            ${this.textControl('calendar_subtitle', 'Untertitel', calendar.subtitle || '', 'calendar')}
+            ${this.textControl('calendar_message', 'Eigener Termintext', calendar.message || '', 'calendar')}
+            ${this.textControl('calendar_icon', 'Icon', calendar.icon || '', 'calendar')}
+          </section>
+        </div>
+      </section>
+    `;
+  }
+
+  widgetToggle(widget, label, checked) {
+    return `
+      <label class="field toggle">
+        <input type="checkbox" ${checked ? 'checked' : ''} data-widget-toggle="${escapeAttr(widget)}">
+        <span>${escapeHtml(label)}</span>
+      </label>
+    `;
+  }
+
+  entityControl(field, label, value, domain) {
+    const options = this.entityOptions(domain, value);
+    return `
+      <div class="field entity-field">
+        <span>${escapeHtml(label)}</span>
+        <select data-config-field="${escapeAttr(field)}" data-entity-domain="${escapeAttr(domain)}">
+          ${options.map((option) => `<option value="${escapeAttr(option.value)}" ${option.value === value ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
+        </select>
+        <input type="text" value="${escapeAttr(value)}" placeholder="${escapeAttr(`${domain}.deine_entity`)}" data-config-field="${escapeAttr(field)}" data-entity-domain="${escapeAttr(domain)}">
+      </div>
+    `;
+  }
+
+  entityOptions(domain, currentValue = '') {
+    const states = Object.values(this._hass?.states || {})
+      .filter((state) => state.entity_id?.startsWith(`${domain}.`))
+      .map((state) => ({
+        value: state.entity_id,
+        label: `${state.attributes?.friendly_name || state.entity_id} (${state.entity_id})`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'de'));
+
+    if (currentValue && !states.some((state) => state.value === currentValue)) {
+      states.unshift({ value: currentValue, label: currentValue });
+    }
+
+    if (!states.length) {
+      states.push({ value: '', label: `Keine ${domain}.* Entity gefunden - unten manuell eintragen` });
+    }
+
+    return states;
+  }
+
+  renderYamlEditorTab() {
+    return `
+      <section class="editor-card">
+        <h3>Fertige Floorplan-Konfiguration</h3>
+        <textarea readonly>${escapeHtml(floorplanYaml(this.config))}</textarea>
+        <p class="hint">Home Assistant übernimmt Änderungen im visuellen Karten-Editor automatisch. Bei Bedarf kannst du diesen Block zusätzlich kopieren.</p>
+      </section>
+    `;
   }
 
   renderSidebarWidgetsCard() {
@@ -1836,8 +1984,14 @@ class HaNeoDashboardEditor extends HTMLElement {
       return;
     }
 
-    const target = event.composedPath().find((node) => node?.dataset?.selectKind || node?.dataset?.addKind || node?.dataset?.removeKind);
+    const target = event.composedPath().find((node) => node?.dataset?.editorTab || node?.dataset?.selectKind || node?.dataset?.addKind || node?.dataset?.removeKind);
     if (!target) {
+      return;
+    }
+
+    if (target.dataset.editorTab) {
+      this.editorTab = target.dataset.editorTab;
+      this.render();
       return;
     }
 
@@ -1866,7 +2020,7 @@ class HaNeoDashboardEditor extends HTMLElement {
 
     if (target.dataset.widgetToggle) {
       this.toggleSidebarWidget(target.dataset.widgetToggle, target.checked);
-      this.configChanged();
+      this.configChanged({ render: true, dispatch: true });
       return;
     }
 
@@ -1876,7 +2030,10 @@ class HaNeoDashboardEditor extends HTMLElement {
       this.config[field] = target.type === 'checkbox' ? target.checked : value;
       this.syncWidgetActions(field);
       this.syncEntityControls(field, this.config[field], target);
-      this.configChanged({ render: event.type === 'change' || event.type === 'value-changed' });
+      this.configChanged({
+        render: event.type === 'change' || event.type === 'value-changed',
+        dispatch: event.type === 'change' || event.type === 'value-changed',
+      });
       return;
     }
 
@@ -1887,7 +2044,7 @@ class HaNeoDashboardEditor extends HTMLElement {
       const numericFields = ['forecast_count'];
       this.config[groupKey] = { ...(this.config[groupKey] || {}), [field]: numericFields.includes(field) ? (target.value === '' ? '' : Number(target.value)) : target.value };
       this.syncEditorControls(isWeather ? `weather_${field}` : `calendar_${field}`, target.value, target);
-      this.configChanged({ render: event.type === 'change' });
+      this.configChanged({ render: event.type === 'change', dispatch: event.type === 'change' });
       return;
     }
 
@@ -1901,7 +2058,7 @@ class HaNeoDashboardEditor extends HTMLElement {
     item[field] = numericFields.includes(field) ? (target.value === '' ? '' : Number(target.value)) : target.value;
     this.updateWorkspaceItemStyle();
     this.syncEditorControls(field, target.value, target);
-    this.configChanged({ render: event.type === 'change' });
+    this.configChanged({ render: event.type === 'change', dispatch: event.type === 'change' });
   };
 
   handleWorkspacePointerDown = (event) => {
@@ -1952,7 +2109,7 @@ class HaNeoDashboardEditor extends HTMLElement {
 
       this.updateWorkspaceItemStyle(element);
       this.syncEditorControls();
-      this.configChanged({ render: false });
+      this.configChanged({ render: false, dispatch: false });
     };
 
     const onUp = () => {
@@ -2077,10 +2234,12 @@ class HaNeoDashboardEditor extends HTMLElement {
     this.configChanged();
   }
 
-  configChanged({ render = true } = {}) {
+  configChanged({ render = true, dispatch = true } = {}) {
     const config = { ...this.config };
     saveFloorplanDraft(config);
-    this.dispatchEvent(new CustomEvent('config-changed', { bubbles: true, composed: true, detail: { config } }));
+    if (dispatch) {
+      this.dispatchEvent(new CustomEvent('config-changed', { bubbles: true, composed: true, detail: { config } }));
+    }
     if (render) {
       this.render();
     }
@@ -2110,6 +2269,10 @@ class HaNeoDashboardEditor extends HTMLElement {
       :host { display: block; color: var(--primary-text-color); }
       .editor-shell { display: grid; gap: 14px; }
       .editor-head, .editor-card { display: grid; gap: 12px; padding: 14px; border-radius: 14px; background: var(--card-background-color, rgba(20, 24, 57, .08)); border: 1px solid var(--divider-color, rgba(127, 127, 127, .18)); }
+      .editor-tabs { display: flex; gap: 8px; padding: 6px; border-radius: 14px; background: var(--card-background-color, rgba(20, 24, 57, .08)); border: 1px solid var(--divider-color, rgba(127, 127, 127, .18)); overflow-x: auto; }
+      .editor-tab { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--secondary-text-color); font-weight: 800; white-space: nowrap; }
+      .editor-tab.active { background: rgba(44, 156, 255, .22); color: var(--primary-text-color); }
+      .editor-tab ha-icon { width: 18px; height: 18px; }
       .editor-head strong { font-size: 16px; }
       .editor-head small, .hint, small { color: var(--secondary-text-color); font-size: 12px; line-height: 1.4; }
       h3 { margin: 0; font-size: 14px; }
@@ -2123,6 +2286,10 @@ class HaNeoDashboardEditor extends HTMLElement {
       .widget-editor h4 { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; color: var(--primary-text-color); }
       .entity-field { gap: 8px; }
       .entity-field input { font-family: monospace; }
+      .nav-preview-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+      .nav-preview-item { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; padding: 10px; border-radius: 10px; background: rgba(44, 156, 255, .08); }
+      .nav-preview-item ha-icon { grid-row: span 2; width: 22px; height: 22px; color: #2c9cff; }
+      .nav-preview-item b { font-size: 12px; }
       .floorplan-workspace { position: relative; width: 100%; aspect-ratio: 1000 / 620; min-height: 300px; border-radius: 18px; overflow: hidden; background: radial-gradient(circle at center, rgba(44, 156, 255, .16), rgba(12, 15, 36, .62)); }
       .editor-floorplan-image, .editor-floorplan-svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
       .editor-floorplan-svg { color: rgba(255,255,255,.9); }
