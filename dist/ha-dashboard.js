@@ -1231,7 +1231,7 @@ const DEFAULT_CONFIG = {
     { name: 'Person 2', entity: 'person.person_2', icon: 'mdi:account-outline', tap_action: { action: 'more-info', entity: 'person.person_2' } },
   ],
   floorplan_rooms: [
-    { label: 'Büro', room: 'office', x: 65, y: 15, width: 25, height: 34 },
+    { label: 'Büro', room: 'office', x: 65, y: 15, width: 30, height: 34 },
     { label: 'Küche', room: 'kitchen', x: 70, y: 50, width: 20, height: 34 },
     { label: 'Wohnzimmer', room: 'living_room', x: 55, y: 74, width: 30, height: 42 },
     { label: 'Badezimmer', room: 'bathroom', x: 10, y: 40, width: 20, height: 26 },
