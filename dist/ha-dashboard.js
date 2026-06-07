@@ -39,12 +39,14 @@ class HaNeoDashboard extends HTMLElement {
     this.addEventListener('click', this.handleClick);
     this.addEventListener('input', this.handleFloorplanEditorInput);
     this.addEventListener('change', this.handleFloorplanEditorInput);
+    this.addEventListener('pointerdown', this.handleFloorplanPointerDown);
   }
 
   disconnectedCallback() {
     this.removeEventListener('click', this.handleClick);
     this.removeEventListener('input', this.handleFloorplanEditorInput);
     this.removeEventListener('change', this.handleFloorplanEditorInput);
+    this.removeEventListener('pointerdown', this.handleFloorplanPointerDown);
   }
 
   render() {
@@ -161,6 +163,7 @@ class HaNeoDashboard extends HTMLElement {
     return `
       <button class="floorplan-room-hotspot ${selected ? 'editor-selected' : ''}" type="button" style="${escapeAttr(style)}" data-room="${escapeAttr(resolvedRoom.room || resolvedRoom.id || '')}" data-action='${jsonAttr(actionFor(resolvedRoom))}' data-floorplan-kind="rooms" data-floorplan-index="${index}">
         <span>${escapeHtml(resolvedRoom.label || resolvedRoom.name || '')}</span>
+        ${this.floorplanEditorOpen ? '<i class="floorplan-resize-handle" data-floorplan-resize="true" aria-hidden="true"></i>' : ''}
       </button>
     `;
   }
@@ -196,7 +199,7 @@ class HaNeoDashboard extends HTMLElement {
         <aside class="floorplan-editor" aria-label="Floorplan anpassen">
           <header>
             <strong>Floorplan anpassen</strong>
-            <small>Änderungen werden sofort in der Karte angezeigt.</small>
+            <small>Ziehen zum Verschieben, Ecke unten rechts zum Vergrößern. Im HA-Bearbeitungsmodus wird die Konfiguration beim Loslassen übernommen.</small>
           </header>
           <label class="floorplan-editor-field floorplan-editor-image">
             <span>Floorplan-Bild</span>
@@ -229,6 +232,7 @@ class HaNeoDashboard extends HTMLElement {
               ` : ''}
             </section>
           ` : `<p class="floorplan-editor-empty">Wähle einen Raum oder eine Entität aus.</p>`}
+          ${selected ? '<button class="floorplan-editor-delete" type="button" data-floorplan-delete="true">Ausgewählten Eintrag entfernen</button>' : ''}
           <button class="floorplan-editor-copy" type="button" data-floorplan-copy="true">${this.floorplanEditorCopied ? 'YAML kopiert' : 'YAML kopieren'}</button>
         </aside>
       ` : ''}
@@ -794,7 +798,13 @@ class HaNeoDashboard extends HTMLElement {
   }
 
   handleClick = (event) => {
-    const editorTarget = event.composedPath().find((node) => node?.dataset?.floorplanEditorToggle || node?.dataset?.floorplanEditorSelect || node?.dataset?.floorplanCopy || node?.dataset?.floorplanKind);
+    if (this.floorplanSuppressClick) {
+      this.floorplanSuppressClick = false;
+      event.preventDefault();
+      return;
+    }
+
+    const editorTarget = event.composedPath().find((node) => node?.dataset?.floorplanEditorToggle || node?.dataset?.floorplanEditorSelect || node?.dataset?.floorplanCopy || node?.dataset?.floorplanDelete || node?.dataset?.floorplanKind);
     if (editorTarget) {
       if (editorTarget.dataset.floorplanEditorToggle) {
         this.floorplanEditorOpen = !this.floorplanEditorOpen;
@@ -809,6 +819,11 @@ class HaNeoDashboard extends HTMLElement {
           index: Number(editorTarget.dataset.floorplanIndex || 0),
         };
         this.render();
+        return;
+      }
+
+      if (editorTarget.dataset.floorplanDelete) {
+        this.deleteSelectedFloorplanItem();
         return;
       }
 
@@ -851,7 +866,7 @@ class HaNeoDashboard extends HTMLElement {
     if (target.dataset.floorplanImage) {
       this.config.apartment_floorplan_image = target.value;
       this.floorplanEditorCopied = false;
-      this.updateFloorplanConfig();
+      this.updateFloorplanConfig({ render: event.type === 'change' });
       return;
     }
 
@@ -863,10 +878,115 @@ class HaNeoDashboard extends HTMLElement {
 
     const field = target.dataset.floorplanField;
     const numericFields = ['x', 'y', 'width', 'height'];
-    selected[field] = numericFields.includes(field) ? Number(target.value) : target.value;
+    selected[field] = numericFields.includes(field) ? (target.value === '' ? '' : Number(target.value)) : target.value;
     this.floorplanEditorCopied = false;
-    this.updateFloorplanConfig();
+    this.updateSelectedFloorplanElementStyle();
+    this.syncFloorplanEditorControls(field, target.value, target);
+    this.updateFloorplanConfig({ render: event.type === 'change' });
   };
+
+  handleFloorplanPointerDown = (event) => {
+    if (!this.floorplanEditorOpen) {
+      return;
+    }
+
+    const element = event.composedPath().find((node) => node?.dataset?.floorplanKind);
+    if (!element) {
+      return;
+    }
+
+    const workspace = this.shadowRoot?.querySelector('.floorplan-wrap');
+    const item = (element.dataset.floorplanKind === 'entities' ? this.config.floorplan_entities : this.config.floorplan_rooms)?.[Number(element.dataset.floorplanIndex || 0)];
+    if (!workspace || !item) {
+      return;
+    }
+
+    event.preventDefault();
+    this.floorplanEditorSelection = { kind: element.dataset.floorplanKind, index: Number(element.dataset.floorplanIndex || 0) };
+
+    const rect = workspace.getBoundingClientRect();
+    const startX = (item.x ?? item.left ?? 50);
+    const startY = (item.y ?? item.top ?? 50);
+    const startWidth = (item.width ?? (element.dataset.floorplanKind === 'rooms' ? 16 : 12));
+    const startHeight = (item.height ?? (element.dataset.floorplanKind === 'rooms' ? 12 : 7));
+    const resizing = Boolean(event.composedPath().find((node) => node?.dataset?.floorplanResize));
+    let moved = false;
+
+    const onMove = (moveEvent) => {
+      const dx = ((moveEvent.clientX - event.clientX) / rect.width) * 100;
+      const dy = ((moveEvent.clientY - event.clientY) / rect.height) * 100;
+      if (Math.abs(dx) > 0.2 || Math.abs(dy) > 0.2) {
+        moved = true;
+      }
+
+      if (resizing) {
+        item.width = roundPercent(Math.max(2, Number(startWidth) + dx));
+        item.height = roundPercent(Math.max(2, Number(startHeight) + dy));
+      } else {
+        item.x = roundPercent(clamp(Number(startX) + dx, 0, 100));
+        item.y = roundPercent(clamp(Number(startY) + dy, 0, 100));
+      }
+
+      this.floorplanEditorCopied = false;
+      this.updateSelectedFloorplanElementStyle(element);
+      this.syncFloorplanEditorControls();
+      this.updateFloorplanConfig({ render: false });
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      if (moved) {
+        this.floorplanSuppressClick = true;
+      }
+      this.updateFloorplanConfig();
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp, { once: true });
+  };
+
+  deleteSelectedFloorplanItem() {
+    const selection = this.floorplanEditorSelection;
+    if (!selection) {
+      return;
+    }
+
+    const key = selection.kind === 'entities' ? 'floorplan_entities' : 'floorplan_rooms';
+    this.config[key] = (this.config[key] || []).filter((_, index) => index !== selection.index);
+    this.floorplanEditorSelection = undefined;
+    this.floorplanEditorCopied = false;
+    this.ensureFloorplanEditorSelection();
+    this.updateFloorplanConfig();
+  }
+
+  updateSelectedFloorplanElementStyle(element) {
+    const selection = this.floorplanEditorSelection;
+    const item = this.selectedFloorplanItem;
+    const target = element || this.shadowRoot?.querySelector(`[data-floorplan-kind="${selection?.kind}"][data-floorplan-index="${selection?.index}"]`);
+    if (!target || !item) {
+      return;
+    }
+
+    const defaults = selection.kind === 'rooms' ? { x: 50, y: 50, width: 16, height: 12 } : { x: 50, y: 50 };
+    target.style.cssText = floorplanElementStyle(item, defaults, selection.kind === 'entities' ? { '--floorplan-entity-icon-size': cssLength(item.icon_size) } : {});
+  }
+
+  syncFloorplanEditorControls(changedField, value, source) {
+    const item = this.selectedFloorplanItem;
+    if (!item) {
+      return;
+    }
+
+    ['x', 'y', 'width', 'height'].forEach((field) => {
+      const nextValue = field === changedField ? value : item[field];
+      this.shadowRoot?.querySelectorAll(`[data-floorplan-field="${field}"]`).forEach((input) => {
+        if (input !== source && nextValue !== undefined && nextValue !== null) {
+          input.value = nextValue;
+        }
+      });
+    });
+  }
 
   get selectedFloorplanItem() {
     this.ensureFloorplanEditorSelection();
@@ -1175,7 +1295,7 @@ class HaNeoDashboard extends HTMLElement {
       .floorplan-wall { fill: none; stroke: rgba(224, 228, 255, .72); stroke-width: 8; stroke-linecap: square; stroke-linejoin: miter; filter: drop-shadow(0 0 10px rgba(255, 255, 255, .18)); }
       .floorplan-door { fill: none; stroke: rgba(12, 15, 36, .95); stroke-width: 11; stroke-linecap: round; }
       .floorplan-svg text { fill: var(--neo-text); font-size: 34px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: rgba(10, 12, 30, .9); stroke-width: 4px; }
-      .floorplan-room-hotspot { position: absolute; transform: translate(-50%, -50%); border-radius: 18px; background: rgba(44, 156, 255, .06); border: 1px solid transparent; color: transparent; }
+      .floorplan-room-hotspot { position: absolute; transform: translate(-50%, -50%); border-radius: 0; background: rgba(44, 156, 255, .06); border: 1px solid transparent; color: transparent; }
       .floorplan-room-hotspot:hover, .floorplan-room-hotspot:focus-visible { background: rgba(44, 156, 255, .16); border-color: rgba(44, 156, 255, .45); color: var(--neo-text); }
       .floorplan-room-hotspot span { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 12px; font-weight: 800; white-space: nowrap; }
       .floorplan-entity { position: absolute; transform: translate(-50%, -50%); display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px; padding: 6px 9px; border-radius: 999px; background: rgba(13, 17, 43, .78); border: 1px solid rgba(169, 181, 232, .26); color: var(--neo-muted); box-shadow: 0 14px 26px rgba(0, 0, 0, .22); backdrop-filter: blur(8px); box-sizing: border-box; }
@@ -1183,6 +1303,8 @@ class HaNeoDashboard extends HTMLElement {
       .floorplan-entity ha-icon { width: var(--floorplan-entity-icon-size, 18px); height: var(--floorplan-entity-icon-size, 18px); flex: 0 0 auto; }
       .floorplan-entity span { font-size: 11px; font-weight: 800; }
       .floorplan-wrap.is-editing .floorplan-room-hotspot, .floorplan-wrap.is-editing .floorplan-entity { color: var(--neo-text); border-color: rgba(44, 156, 255, .55); background: rgba(44, 156, 255, .18); }
+      .floorplan-wrap.is-editing .floorplan-room-hotspot, .floorplan-wrap.is-editing .floorplan-entity { touch-action: none; }
+      .floorplan-resize-handle, .workspace-resize-handle { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; background: linear-gradient(135deg, transparent 50%, var(--neo-orange, #f29a37) 50%); cursor: nwse-resize; }
       .floorplan-room-hotspot.editor-selected, .floorplan-entity.editor-selected { outline: 2px solid var(--neo-orange); outline-offset: 3px; color: var(--neo-text); border-color: var(--neo-orange); z-index: 5; }
       .floorplan-edit-toggle { position: absolute; right: 16px; top: 16px; z-index: 20; display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px; border-radius: 999px; background: rgba(255, 255, 255, .94); color: #111530; font-size: 12px; font-weight: 900; box-shadow: 0 12px 24px rgba(0, 0, 0, .24); }
       .floorplan-edit-toggle ha-icon { width: 18px; height: 18px; }
@@ -1202,6 +1324,7 @@ class HaNeoDashboard extends HTMLElement {
       .floorplan-editor-field input { min-width: 0; height: 28px; padding: 0 8px; border-radius: 8px; border: 1px solid rgba(169, 181, 232, .26); background: rgba(255, 255, 255, .08); color: var(--neo-text); }
       .floorplan-editor-field input[type="range"] { padding: 0; border: 0; accent-color: var(--neo-blue); background: transparent; }
       .floorplan-editor-image { grid-template-columns: 82px 1fr; }
+      .floorplan-editor-delete { min-height: 34px; border-radius: 0; background: rgba(242, 84, 84, .22); color: var(--neo-text); font-size: 12px; font-weight: 900; }
       .floorplan-editor-copy { min-height: 34px; border-radius: 999px; background: rgba(44, 156, 255, .24); color: var(--neo-text); font-size: 12px; font-weight: 900; }
       .page-grid, .rooms-grid { width: min(760px, 100%); display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 16px; }
       .page-grid-wide, .full-page-grid, .server-layout { width: min(820px, 100%); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
@@ -1353,6 +1476,7 @@ class HaNeoDashboardEditor extends HTMLElement {
     this.addEventListener('click', this.handleClick);
     this.addEventListener('input', this.handleInput);
     this.addEventListener('change', this.handleInput);
+    this.addEventListener('pointerdown', this.handleWorkspacePointerDown);
     this.render();
   }
 
@@ -1360,6 +1484,7 @@ class HaNeoDashboardEditor extends HTMLElement {
     this.removeEventListener('click', this.handleClick);
     this.removeEventListener('input', this.handleInput);
     this.removeEventListener('change', this.handleInput);
+    this.removeEventListener('pointerdown', this.handleWorkspacePointerDown);
   }
 
   normalizeConfig(config) {
@@ -1409,7 +1534,7 @@ class HaNeoDashboardEditor extends HTMLElement {
             ${(this.config.floorplan_rooms || []).map((room, index) => this.renderWorkspaceItem('rooms', room, index)).join('')}
             ${(this.config.floorplan_entities || []).map((entity, index) => this.renderWorkspaceItem('entities', entity, index)).join('')}
           </div>
-          <p class="hint">Tipp: Klicke oben im Floorplan auf einen Raum oder eine Entität und ändere die Werte unten. Diese Arbeitsfläche ist größer als die schmale Home-Assistant-Vorschau neben YAML.</p>
+          <p class="hint">Tipp: Ziehe Räume und Entitäten direkt an die gewünschte Stelle. Bei Räumen kannst du die Ecke unten rechts ziehen, um die Rechtecke zu vergrößern oder zu verkleinern.</p>
         </section>
 
         <section class="editor-card grid-2">
@@ -1438,7 +1563,7 @@ class HaNeoDashboardEditor extends HTMLElement {
     const label = item.label || item.name || item.room || item.entity || `${kind === 'rooms' ? 'Raum' : 'Entity'} ${index + 1}`;
 
     if (kind === 'rooms') {
-      return `<button class="workspace-room ${active ? 'active' : ''}" style="${escapeAttr(style)}" type="button" data-select-kind="rooms" data-select-index="${index}">${escapeHtml(label)}</button>`;
+      return `<button class="workspace-room ${active ? 'active' : ''}" style="${escapeAttr(style)}" type="button" data-select-kind="rooms" data-select-index="${index}">${escapeHtml(label)}<i class="workspace-resize-handle" data-workspace-resize="true" aria-hidden="true"></i></button>`;
     }
 
     return `
@@ -1461,7 +1586,10 @@ class HaNeoDashboardEditor extends HTMLElement {
             return `<button class="${active ? 'active' : ''}" type="button" data-select-kind="${kind}" data-select-index="${index}">${escapeHtml(label)}</button>`;
           }).join('') || '<small>Noch keine Einträge.</small>'}
         </div>
-        <button class="secondary" type="button" data-add-kind="${kind}">${escapeHtml(addLabel)}</button>
+        <div class="list-actions">
+          <button class="secondary" type="button" data-add-kind="${kind}">${escapeHtml(addLabel)}</button>
+          ${items.length ? `<button class="secondary danger" type="button" data-remove-kind="${kind}">Auswahl entfernen</button>` : ''}
+        </div>
       </section>
     `;
   }
@@ -1506,7 +1634,13 @@ class HaNeoDashboardEditor extends HTMLElement {
   }
 
   handleClick = (event) => {
-    const target = event.composedPath().find((node) => node?.dataset?.selectKind || node?.dataset?.addKind);
+    if (this.workspaceSuppressClick) {
+      this.workspaceSuppressClick = false;
+      event.preventDefault();
+      return;
+    }
+
+    const target = event.composedPath().find((node) => node?.dataset?.selectKind || node?.dataset?.addKind || node?.dataset?.removeKind);
     if (!target) {
       return;
     }
@@ -1520,6 +1654,11 @@ class HaNeoDashboardEditor extends HTMLElement {
 
     if (target.dataset.addKind) {
       this.addItem(target.dataset.addKind);
+      return;
+    }
+
+    if (target.dataset.removeKind) {
+      this.removeSelectedItem(target.dataset.removeKind);
     }
   };
 
@@ -1532,7 +1671,7 @@ class HaNeoDashboardEditor extends HTMLElement {
     if (target.dataset.configField) {
       const field = target.dataset.configField;
       this.config[field] = target.type === 'checkbox' ? target.checked : target.value;
-      this.configChanged();
+      this.configChanged({ render: event.type === 'change' });
       return;
     }
 
@@ -1543,9 +1682,115 @@ class HaNeoDashboardEditor extends HTMLElement {
 
     const field = target.dataset.itemField;
     const numericFields = ['x', 'y', 'width', 'height'];
-    item[field] = numericFields.includes(field) ? Number(target.value) : target.value;
-    this.configChanged();
+    item[field] = numericFields.includes(field) ? (target.value === '' ? '' : Number(target.value)) : target.value;
+    this.updateWorkspaceItemStyle();
+    this.syncEditorControls(field, target.value, target);
+    this.configChanged({ render: event.type === 'change' });
   };
+
+  handleWorkspacePointerDown = (event) => {
+    const path = event.composedPath();
+    if (!path.find((node) => node?.classList?.contains('floorplan-workspace'))) {
+      return;
+    }
+
+    const element = path.find((node) => node?.dataset?.selectKind);
+    if (!element) {
+      return;
+    }
+
+    const workspace = this.shadowRoot?.querySelector('.floorplan-workspace');
+    const kind = element.dataset.selectKind;
+    const index = Number(element.dataset.selectIndex || 0);
+    const item = (kind === 'entities' ? this.config.floorplan_entities : this.config.floorplan_rooms)?.[index];
+    if (!workspace || !item) {
+      return;
+    }
+
+    event.preventDefault();
+    this.selectedKind = kind;
+    this.selectedIndex = index;
+
+    const rect = workspace.getBoundingClientRect();
+    const startX = (item.x ?? item.left ?? 50);
+    const startY = (item.y ?? item.top ?? 50);
+    const startWidth = (item.width ?? (kind === 'rooms' ? 16 : 12));
+    const startHeight = (item.height ?? (kind === 'rooms' ? 12 : 7));
+    const resizing = Boolean(path.find((node) => node?.dataset?.workspaceResize));
+    let moved = false;
+
+    const onMove = (moveEvent) => {
+      const dx = ((moveEvent.clientX - event.clientX) / rect.width) * 100;
+      const dy = ((moveEvent.clientY - event.clientY) / rect.height) * 100;
+      if (Math.abs(dx) > 0.2 || Math.abs(dy) > 0.2) {
+        moved = true;
+      }
+
+      if (resizing) {
+        item.width = roundPercent(Math.max(2, Number(startWidth) + dx));
+        item.height = roundPercent(Math.max(2, Number(startHeight) + dy));
+      } else {
+        item.x = roundPercent(clamp(Number(startX) + dx, 0, 100));
+        item.y = roundPercent(clamp(Number(startY) + dy, 0, 100));
+      }
+
+      this.updateWorkspaceItemStyle(element);
+      this.syncEditorControls();
+      this.configChanged({ render: false });
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      if (moved) {
+        this.workspaceSuppressClick = true;
+      }
+      this.configChanged();
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp, { once: true });
+  };
+
+  removeSelectedItem(kind = this.selectedKind) {
+    const key = kind === 'entities' ? 'floorplan_entities' : 'floorplan_rooms';
+    if (this.selectedKind !== kind) {
+      this.selectedKind = kind;
+      this.selectedIndex = 0;
+    }
+
+    this.config[key] = (this.config[key] || []).filter((_, index) => index !== this.selectedIndex);
+    this.selectedIndex = Math.max(0, this.selectedIndex - 1);
+    this.ensureSelection();
+    this.configChanged();
+  }
+
+  updateWorkspaceItemStyle(element) {
+    const item = this.selectedItem;
+    const target = element || this.shadowRoot?.querySelector(`[data-select-kind="${this.selectedKind}"][data-select-index="${this.selectedIndex}"]`);
+    if (!target || !item) {
+      return;
+    }
+
+    const defaults = this.selectedKind === 'rooms' ? { x: 50, y: 50, width: 16, height: 12 } : { x: 50, y: 50 };
+    target.style.cssText = floorplanElementStyle(item, defaults, this.selectedKind === 'entities' ? { '--floorplan-entity-icon-size': cssLength(item.icon_size) } : {});
+  }
+
+  syncEditorControls(changedField, value, source) {
+    const item = this.selectedItem;
+    if (!item) {
+      return;
+    }
+
+    ['x', 'y', 'width', 'height'].forEach((field) => {
+      const nextValue = field === changedField ? value : item[field];
+      this.shadowRoot?.querySelectorAll(`[data-item-field="${field}"]`).forEach((input) => {
+        if (input !== source && nextValue !== undefined && nextValue !== null) {
+          input.value = nextValue;
+        }
+      });
+    });
+  }
 
   addItem(kind) {
     if (kind === 'rooms') {
@@ -1604,16 +1849,18 @@ class HaNeoDashboardEditor extends HTMLElement {
       .editor-floorplan-svg .floorplan-wall { fill: none; stroke: rgba(224, 228, 255, .72); stroke-width: 8; stroke-linecap: square; stroke-linejoin: miter; }
       .editor-floorplan-svg .floorplan-door { fill: none; stroke: rgba(12, 15, 36, .95); stroke-width: 11; stroke-linecap: round; }
       .editor-floorplan-svg text { fill: currentColor; font-size: 34px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: rgba(10, 12, 30, .9); stroke-width: 4px; }
-      .workspace-room, .workspace-entity { position: absolute; transform: translate(-50%, -50%); box-sizing: border-box; }
-      .workspace-room { border-radius: 14px; border: 1px solid rgba(44, 156, 255, .65); background: rgba(44, 156, 255, .16); color: white; font-size: 12px; font-weight: 900; }
+      .workspace-room, .workspace-entity { position: absolute; transform: translate(-50%, -50%); box-sizing: border-box; touch-action: none; }
+      .workspace-room { border-radius: 0; border: 1px solid rgba(44, 156, 255, .65); background: rgba(44, 156, 255, .16); color: white; font-size: 12px; font-weight: 900; }
       .workspace-entity { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; padding: 6px 9px; border-radius: 999px; border: 1px solid rgba(169, 181, 232, .5); background: rgba(13, 17, 43, .82); color: white; font-size: 11px; font-weight: 800; }
       .workspace-entity ha-icon { width: var(--floorplan-entity-icon-size, 18px); height: var(--floorplan-entity-icon-size, 18px); }
       .workspace-room.active, .workspace-entity.active { outline: 3px solid #f29a37; outline-offset: 3px; z-index: 3; }
       .list-section { display: grid; gap: 10px; min-width: 0; }
       .item-list { display: grid; gap: 6px; max-height: 160px; overflow: auto; }
+      .list-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
       .item-list button, .secondary { min-height: 34px; border: 0; border-radius: 9px; padding: 7px 10px; background: rgba(44, 156, 255, .12); color: var(--primary-text-color); text-align: left; font-weight: 700; }
       .item-list button.active { background: rgba(44, 156, 255, .34); }
       .secondary { text-align: center; background: rgba(242, 154, 55, .22); }
+      .secondary.danger { background: rgba(242, 84, 84, .22); }
       .control-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
       .number-field { grid-template-columns: 56px 1fr 72px; align-items: center; }
       .number-field span { grid-column: 1; }
@@ -2204,6 +2451,14 @@ function cssLength(value, fallback) {
   }
 
   return '';
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function roundPercent(value) {
+  return Math.round(value * 10) / 10;
 }
 
 function parseAktion(value) {
