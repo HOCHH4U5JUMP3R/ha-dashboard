@@ -4,7 +4,7 @@
 
 ![HA Neo Dashboard Vorschau](docs/preview.svg)
 
-HA Neo Dashboard ist eine HACS-kompatible **Vollbild-Lovelace-Dashboard-Karte** im dunklen, futuristischen Stil der Referenzgrafik. Sie ist nicht als kleine Kachel gedacht, sondern für eine Lovelace-View mit `panel: true`: linke Systemspalte, zentrale Hauptfläche, rechte Gauges und eine untere Navigation für mehrere interne Dashboard-Seiten.
+HA Neo Dashboard ist eine HACS-kompatible **Vollbild-Lovelace-Dashboard-Karte** im dunklen, futuristischen Stil der Referenzgrafik. Sie ist nicht als kleine Kachel gedacht, sondern für eine Lovelace-View mit `panel: true`: Topbar mit Anwesenheit und Raumüberschrift, linke Kontextspalte, zentrale Hauptfläche und eine untere Navigation für Startseite, Übersicht, Klima, Lichter, Strom, Sicherheit und System.
 
 ## HACS-Installation
 
@@ -39,7 +39,7 @@ views:
         subtitle: Erdgeschoss
         background_image: /local/neo-dashboard/background.jpg
         image: /local/neo-dashboard/living-room.png
-        default_page: rooms
+        default_page: home
         default_room: living_room
 ```
 
@@ -68,21 +68,27 @@ Alle sichtbaren Bereiche sind über YAML konfigurierbar:
 | --- | --- |
 | `background_image` | Eigenes Vollbild-Hintergrundbild hinter Glow und Panels. |
 | `image` | Zentraler Wohnzimmer-/Raum-Render auf der Übersichtsseite. |
+| `presence` | Personen/Anwesenheits-Entities in der oberen Leiste. |
+| `apartment_floorplan_image` | Optionales eigenes 2D-Grundrissbild für die Startseite; ohne Bild wird ein integrierter SVG-Plan genutzt. |
+| `floorplan_rooms` | Unsichtbare Raum-Hotspots auf dem Grundriss, die den aktiven Raum wechseln. |
+| `floorplan_entities` | Frei platzierbare Entity-Chips auf dem Grundriss mit `x`/`y` in Prozent und normaler `tap_action`. |
 | `top_tabs` | Reiter links oben auf Raumseiten, z. B. System- und Wartungsaktionen. |
 | `room_overview_top_tabs` | Eigene Startseiten-Reiter, standardmäßig Kalender, Todo und Wetter. |
 | `systems` | Linke Statusliste mit Icon, Entity, Label, Farbe und Aktion auf Raumseiten. |
 | `room_overview_systems` | Linke Statusliste auf der Raumübersicht, z. B. Kalender, Todo und Wetter. |
 | `metrics` | Linke Balkenwerte mit Entity, Maximalwert, Einheit und Aktion. |
-| `gauges` | Rechte runde Karten mit Entity, optionaler `value_entity`, Einheit, Farbe und Aktion. |
+| `gauges` | Runde Raumwerte; werden weiterhin für Raum-/Geräte-Widgets genutzt. |
 | `rooms` | Raumliste für Schlafzimmer, Wohnzimmer, Büro, Küche, Badezimmer, Garage und Keller; pro Raum können Steckdosen-/Kontakt-Entities und Seitenregeln gesetzt werden. |
 | `default_room` | Raum, der nach dem Öffnen bzw. nach dem Zurückwechseln auf Raumseiten aktiv ist. |
 | `room_overview_gauges` | Rechte Gauges der Raumübersicht, z. B. Durchschnittstemperatur oder aktive Lichter. |
 | `pages` | Untere Navigation und interne Seiten mit beliebig vielen Funktionskacheln; Seiten können per `rooms`, `exclude_rooms`, `enabled: false`, `enabled_pages` oder `disabled_pages` raumabhängig gesteuert werden. |
 
 
-## Räume und Raumübersicht
+## Startseite, Wohnungsplan und Räume
 
-Die Card startet standardmäßig mit `default_page: rooms`. Diese Raumübersicht passt optisch zum Neo-Design und zeigt große Auswahlkacheln für:
+Die Card startet standardmäßig mit `default_page: home`. Die Startseite zeigt einen 2D-Wohnungsplan im Neo-Design. Räume und Entity-Chips werden bewusst über einfache Prozent-Koordinaten in YAML gesetzt, damit du sie in Home Assistant schnell anpassen kannst. Ohne eigenes Bild wird ein integrierter SVG-Grundriss verwendet; mit `apartment_floorplan_image` kannst du deinen eigenen Plan unter `/local/neo-dashboard/...` verwenden.
+
+Die vorkonfigurierten Räume sind:
 
 - Schlafzimmer
 - Wohnzimmer
@@ -92,12 +98,12 @@ Die Card startet standardmäßig mit `default_page: rooms`. Diese Raumübersicht
 - Garage
 - Keller
 
-Beim Tippen auf eine Raumkachel wechselt die Card intern auf die Übersichtsseite dieses Raums. Die Seiten `Klima`, `Lichter`, `Sicherheit`, `Medien`, `Wartung`, `Anwesenheit` und `System` bleiben gleich aufgebaut, verwenden aber Platzhalter wie `{prefix}` und werden dadurch auf den aktuell gewählten Raum gemappt.
+Beim Tippen auf eine Raumkachel wechselt die Card intern auf die Übersichtsseite dieses Raums. Die Seiten `Übersicht`, `Klima`, `Lichter`, `Strom`, `Sicherheit` und `System` bleiben gleich aufgebaut, verwenden aber Platzhalter wie `{prefix}` und werden dadurch auf den aktuell gewählten Raum gemappt.
 
 Minimalbeispiel für eigene Räume:
 
 ```yaml
-default_page: rooms
+default_page: home
 default_room: living_room
 rooms:
   - id: bedroom
@@ -118,6 +124,51 @@ rooms:
     temperature_entity: sensor.living_room_temperature
     humidity_entity: sensor.living_room_humidity
     all_lights_entity: light.living_room_all
+```
+
+
+
+Beispiel für einen eigenen interaktiven Startseiten-Grundriss:
+
+```yaml
+presence:
+  - name: Alex
+    entity: person.alex
+    icon: mdi:account
+  - name: Gast
+    entity: input_boolean.guest_mode
+    icon: mdi:account-plus
+    tap_action:
+      action: toggle
+      entity: input_boolean.guest_mode
+apartment_floorplan_image: /local/neo-dashboard/apartment-floorplan.png
+floorplan_rooms:
+  - label: Wohnzimmer
+    room: living_room
+    x: 72
+    y: 36
+    width: 28
+    height: 32
+  - label: Küche
+    room: kitchen
+    x: 48
+    y: 30
+    width: 18
+    height: 28
+floorplan_entities:
+  - name: Wohnzimmer Licht
+    entity: light.living_room_all
+    icon: mdi:lightbulb-group
+    x: 72
+    y: 36
+    tap_action:
+      action: toggle
+      entity: light.living_room_all
+  - name: Küche Temperatur
+    entity: sensor.kitchen_temperature
+    icon: mdi:thermometer
+    x: 48
+    y: 25
 ```
 
 Für Raumseiten kannst du Platzhalter verwenden. `{prefix}` entspricht standardmäßig der Raum-ID, kann aber pro Raum mit `prefix` überschrieben werden:
@@ -169,7 +220,7 @@ room_overview_top_tabs:
       entity: weather.home
 ```
 
-Auf Funktionsseiten wie Klima, Lichter, Sicherheit, Medien oder Server bleibt die linke Statusspalte erhalten; nur die rechte Gauge-Leiste wird ausgeblendet. Der Inhalt nutzt dadurch die zusammengelegte Mittel-/Rechtsfläche: Klima zeigt oben zwei halbbreite 7-Tage-Verläufe, darunter Istwerte und Heizungssteuerung; Lichter zeigt alle Licht-Entities mit AN/AUS und Helligkeit; Sicherheit bereitet Kamerafeed sowie Tür-/Fenstersensoren vor; Medien bündelt Xbox, PlayStation und Apple TV; Server bildet den Fritz!Box-/Paperless-/Immich-/Jellyfin-/SABnzbd-/Medi-arr-Dienstestatus im kompakten Kachelraster ab.
+Auf Funktionsseiten wie Klima, Lichter, Strom, Sicherheit, System oder Server bleibt die Topbar und die linke Kontextspalte erhalten. Der Inhalt nutzt dadurch die zusammengelegte Mittel-/Rechtsfläche: Klima zeigt oben zwei halbbreite 7-Tage-Verläufe, darunter Istwerte und Heizungssteuerung; Lichter zeigt alle Licht-Entities mit AN/AUS und Helligkeit; Sicherheit bereitet Kamerafeed sowie Tür-/Fenstersensoren vor; Medien bündelt Xbox, PlayStation und Apple TV; Server bildet den Fritz!Box-/Paperless-/Immich-/Jellyfin-/SABnzbd-/Medi-arr-Dienstestatus im kompakten Kachelraster ab.
 
 Nur auf dem Server-Reiter kann die linke Statusspalte mit `server_status_sections` überschrieben werden. Das ist für Hardwarewerte wie CPU, Lüfter, Netzwerk, RAM, Speicher und Festplatten gedacht; die restlichen Reiter verwenden weiterhin die normale Statusspalte.
 
@@ -219,7 +270,7 @@ rooms:
   - id: bedroom
     disabled_pages: [media]
   - id: office
-    enabled_pages: [rooms, overview, climate, lights, security, media, maintenance, systems, server]
+    enabled_pages: [home, overview, climate, lights, power, security, system, server]
 ```
 
 
