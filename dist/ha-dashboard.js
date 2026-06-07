@@ -1563,13 +1563,20 @@ class HaNeoDashboardEditor extends HTMLElement {
   }
 
   set hass(hass) {
+    const hadHass = Boolean(this._hass);
     this._hass = hass;
+    if (!hadHass && this.config) {
+      this.render();
+      return;
+    }
+    this.hydrateEditorControls();
   }
 
   connectedCallback() {
     this.addEventListener('click', this.handleClick);
     this.addEventListener('input', this.handleInput);
     this.addEventListener('change', this.handleInput);
+    this.addEventListener('value-changed', this.handleInput);
     this.addEventListener('pointerdown', this.handleWorkspacePointerDown);
     this.render();
   }
@@ -1578,6 +1585,7 @@ class HaNeoDashboardEditor extends HTMLElement {
     this.removeEventListener('click', this.handleClick);
     this.removeEventListener('input', this.handleInput);
     this.removeEventListener('change', this.handleInput);
+    this.removeEventListener('value-changed', this.handleInput);
     this.removeEventListener('pointerdown', this.handleWorkspacePointerDown);
   }
 
@@ -1589,6 +1597,12 @@ class HaNeoDashboardEditor extends HTMLElement {
       default_page: configWithDraft.default_page || 'home',
       floorplan_editor: configWithDraft.floorplan_editor ?? true,
       apartment_floorplan_image: configWithDraft.apartment_floorplan_image ?? DEFAULT_CONFIG.apartment_floorplan_image,
+      weather_entity: configWithDraft.weather_entity || configWithDraft.home_weather?.entity || DEFAULT_CONFIG.weather_entity,
+      calendar_entity: configWithDraft.calendar_entity || configWithDraft.home_calendar?.entity || DEFAULT_CONFIG.calendar_entity,
+      left_sidebar_widgets: configWithDraft.left_sidebar_widgets === false ? [] : Array.isArray(configWithDraft.left_sidebar_widgets) ? [...configWithDraft.left_sidebar_widgets] : [...(DEFAULT_CONFIG.left_sidebar_widgets || [])],
+      home_sidebar_widgets: configWithDraft.home_sidebar_widgets === false ? [] : Array.isArray(configWithDraft.home_sidebar_widgets) ? [...configWithDraft.home_sidebar_widgets] : [...(DEFAULT_CONFIG.home_sidebar_widgets || [])],
+      home_weather: { ...DEFAULT_CONFIG.home_weather, ...(configWithDraft.home_weather || {}) },
+      home_calendar: { ...DEFAULT_CONFIG.home_calendar, ...(configWithDraft.home_calendar || {}) },
       floorplan_rooms: cloneList(configWithDraft.floorplan_rooms || DEFAULT_CONFIG.floorplan_rooms),
       floorplan_entities: cloneList(configWithDraft.floorplan_entities || DEFAULT_CONFIG.floorplan_entities),
     };
@@ -1614,6 +1628,8 @@ class HaNeoDashboardEditor extends HTMLElement {
           <strong>HA Neo Dashboard anpassen</strong>
           <small>Der Editor ist absichtlich hier im Karten-Dialog, damit du nicht im YAML suchen musst.</small>
         </header>
+
+        ${this.renderSidebarWidgetsCard()}
 
         <section class="editor-card">
           <h3>Große Floorplan-Arbeitsfläche</h3>
@@ -1650,6 +1666,85 @@ class HaNeoDashboardEditor extends HTMLElement {
         </section>
       </section>
     `;
+
+    this.hydrateEditorControls();
+  }
+
+  renderSidebarWidgetsCard() {
+    const widgets = Array.isArray(this.config.left_sidebar_widgets) ? this.config.left_sidebar_widgets : (this.config.home_sidebar_widgets || []);
+    const weather = this.config.home_weather || {};
+    const calendar = this.config.home_calendar || {};
+
+    return `
+      <section class="editor-card">
+        <h3>Seitenleiste: Wetter & Kalender</h3>
+        <p class="hint">Diese Kacheln kannst du jetzt direkt im visuellen Karten-Editor konfigurieren. Die Entity-Auswahl speichert Home Assistant zusammen mit der Karten-Konfiguration.</p>
+        <div class="widget-toggles">
+          ${this.widgetToggle('weather', 'Wetter-Kachel anzeigen', widgets.includes('weather'))}
+          ${this.widgetToggle('calendar', 'Kalender-Kachel anzeigen', widgets.includes('calendar'))}
+        </div>
+        <div class="widget-grid">
+          <section class="widget-editor">
+            <h4><ha-icon icon="mdi:weather-partly-cloudy"></ha-icon> Wetter</h4>
+            ${this.entityControl('weather_entity', 'Wetter-Entity', this.config.weather_entity || '', 'weather')}
+            ${this.textControl('weather_title', 'Titel', weather.title || 'Wetter', 'weather')}
+            ${this.textControl('weather_label', 'Eigene Zustandszeile', weather.label || '', 'weather')}
+            ${this.textControl('weather_icon', 'Icon', weather.icon || '', 'weather')}
+            ${this.numberControl('weather_forecast_count', 'Vorhersage-Tage', weather.forecast_count ?? 4, 'weather', { min: 0, max: 7, step: 1 })}
+          </section>
+          <section class="widget-editor">
+            <h4><ha-icon icon="mdi:calendar-month"></ha-icon> Kalender</h4>
+            ${this.entityControl('calendar_entity', 'Kalender-Entity', this.config.calendar_entity || '', 'calendar')}
+            ${this.textControl('calendar_title', 'Titel', calendar.title || 'Kalender', 'calendar')}
+            ${this.textControl('calendar_subtitle', 'Untertitel', calendar.subtitle || '', 'calendar')}
+            ${this.textControl('calendar_message', 'Eigener Termintext', calendar.message || '', 'calendar')}
+            ${this.textControl('calendar_icon', 'Icon', calendar.icon || '', 'calendar')}
+          </section>
+        </div>
+      </section>
+    `;
+  }
+
+  widgetToggle(widget, label, checked) {
+    return `
+      <label class="field toggle">
+        <input type="checkbox" ${checked ? 'checked' : ''} data-widget-toggle="${escapeAttr(widget)}">
+        <span>${escapeHtml(label)}</span>
+      </label>
+    `;
+  }
+
+  entityControl(field, label, value, domain) {
+    const options = this.entityOptions(domain, value);
+    return `
+      <div class="field entity-field">
+        <span>${escapeHtml(label)}</span>
+        <select data-config-field="${escapeAttr(field)}" data-entity-domain="${escapeAttr(domain)}">
+          ${options.map((option) => `<option value="${escapeAttr(option.value)}" ${option.value === value ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
+        </select>
+        <input type="text" value="${escapeAttr(value)}" placeholder="${escapeAttr(`${domain}.deine_entity`)}" data-config-field="${escapeAttr(field)}" data-entity-domain="${escapeAttr(domain)}">
+      </div>
+    `;
+  }
+
+  entityOptions(domain, currentValue = '') {
+    const states = Object.values(this._hass?.states || {})
+      .filter((state) => state.entity_id?.startsWith(`${domain}.`))
+      .map((state) => ({
+        value: state.entity_id,
+        label: `${state.attributes?.friendly_name || state.entity_id} (${state.entity_id})`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'de'));
+
+    if (currentValue && !states.some((state) => state.value === currentValue)) {
+      states.unshift({ value: currentValue, label: currentValue });
+    }
+
+    if (!states.length) {
+      states.push({ value: '', label: `Keine ${domain}.* Entity gefunden - unten manuell eintragen` });
+    }
+
+    return states;
   }
 
   renderWorkspaceItem(kind, item, index) {
@@ -1708,23 +1803,28 @@ class HaNeoDashboardEditor extends HTMLElement {
     `;
   }
 
-  textControl(field, label, value) {
+  textControl(field, label, value, group = 'item') {
+    const dataAttribute = group === 'weather' ? 'data-weather-field' : group === 'calendar' ? 'data-calendar-field' : 'data-item-field';
     return `
       <label class="field">
         <span>${escapeHtml(label)}</span>
-        <input type="text" value="${escapeAttr(value)}" data-item-field="${escapeAttr(field)}">
+        <input type="text" value="${escapeAttr(value)}" ${dataAttribute}="${escapeAttr(field)}">
       </label>
     `;
   }
 
-  numberControl(field, label, value) {
+  numberControl(field, label, value, group = 'item', options = {}) {
     const numericValue = Number.parseFloat(value);
     const displayValue = Number.isFinite(numericValue) ? numericValue : '';
+    const dataAttribute = group === 'weather' ? 'data-weather-field' : group === 'calendar' ? 'data-calendar-field' : 'data-item-field';
+    const min = options.min ?? 0;
+    const max = options.max ?? 100;
+    const step = options.step ?? 0.5;
     return `
       <label class="field number-field">
         <span>${escapeHtml(label)}</span>
-        <input type="range" min="0" max="100" step="0.5" value="${escapeAttr(displayValue)}" data-item-field="${escapeAttr(field)}">
-        <input type="number" min="0" max="100" step="0.5" value="${escapeAttr(displayValue)}" data-item-field="${escapeAttr(field)}">
+        <input type="range" min="${escapeAttr(min)}" max="${escapeAttr(max)}" step="${escapeAttr(step)}" value="${escapeAttr(displayValue)}" ${dataAttribute}="${escapeAttr(field)}">
+        <input type="number" min="${escapeAttr(min)}" max="${escapeAttr(max)}" step="${escapeAttr(step)}" value="${escapeAttr(displayValue)}" ${dataAttribute}="${escapeAttr(field)}">
       </label>
     `;
   }
@@ -1759,14 +1859,34 @@ class HaNeoDashboardEditor extends HTMLElement {
   };
 
   handleInput = (event) => {
-    const target = event.composedPath().find((node) => node?.dataset?.configField || node?.dataset?.itemField);
+    const target = event.composedPath().find((node) => node?.dataset?.configField || node?.dataset?.itemField || node?.dataset?.weatherField || node?.dataset?.calendarField || node?.dataset?.widgetToggle);
     if (!target) {
+      return;
+    }
+
+    if (target.dataset.widgetToggle) {
+      this.toggleSidebarWidget(target.dataset.widgetToggle, target.checked);
+      this.configChanged();
       return;
     }
 
     if (target.dataset.configField) {
       const field = target.dataset.configField;
-      this.config[field] = target.type === 'checkbox' ? target.checked : target.value;
+      const value = event.type === 'value-changed' ? event.detail?.value : target.value;
+      this.config[field] = target.type === 'checkbox' ? target.checked : value;
+      this.syncWidgetActions(field);
+      this.syncEntityControls(field, this.config[field], target);
+      this.configChanged({ render: event.type === 'change' || event.type === 'value-changed' });
+      return;
+    }
+
+    if (target.dataset.weatherField || target.dataset.calendarField) {
+      const isWeather = Boolean(target.dataset.weatherField);
+      const groupKey = isWeather ? 'home_weather' : 'home_calendar';
+      const field = (isWeather ? target.dataset.weatherField : target.dataset.calendarField).replace(/^weather_|^calendar_/, '');
+      const numericFields = ['forecast_count'];
+      this.config[groupKey] = { ...(this.config[groupKey] || {}), [field]: numericFields.includes(field) ? (target.value === '' ? '' : Number(target.value)) : target.value };
+      this.syncEditorControls(isWeather ? `weather_${field}` : `calendar_${field}`, target.value, target);
       this.configChanged({ render: event.type === 'change' });
       return;
     }
@@ -1848,6 +1968,53 @@ class HaNeoDashboardEditor extends HTMLElement {
     window.addEventListener('pointerup', onUp, { once: true });
   };
 
+  toggleSidebarWidget(widget, checked) {
+    const widgets = new Set(Array.isArray(this.config.left_sidebar_widgets) ? this.config.left_sidebar_widgets : []);
+    if (checked) {
+      widgets.add(widget);
+    } else {
+      widgets.delete(widget);
+    }
+    this.config.left_sidebar_widgets = ['weather', 'calendar'].filter((entry) => widgets.has(entry));
+  }
+
+  syncEntityControls(field, value, source) {
+    if (!['weather_entity', 'calendar_entity'].includes(field)) {
+      return;
+    }
+
+    this.shadowRoot?.querySelectorAll(`[data-config-field="${field}"]`).forEach((control) => {
+      if (control !== source) {
+        control.value = value || '';
+      }
+    });
+  }
+
+  syncWidgetActions(field) {
+    if (field === 'weather_entity') {
+      this.config.home_weather = { ...this.config.home_weather, entity: this.config.weather_entity };
+      if (this.config.home_weather?.tap_action?.action === 'more-info') {
+        this.config.home_weather = { ...this.config.home_weather, tap_action: { ...this.config.home_weather.tap_action, entity: this.config.weather_entity } };
+      }
+    }
+    if (field === 'calendar_entity') {
+      this.config.home_calendar = { ...this.config.home_calendar, entity: this.config.calendar_entity };
+      if (this.config.home_calendar?.tap_action?.action === 'more-info') {
+        this.config.home_calendar = { ...this.config.home_calendar, tap_action: { ...this.config.home_calendar.tap_action, entity: this.config.calendar_entity } };
+      }
+    }
+  }
+
+  hydrateEditorControls() {
+    if (!this.shadowRoot) {
+      return;
+    }
+
+    ['weather_entity', 'calendar_entity'].forEach((field) => {
+      this.syncEntityControls(field, this.config?.[field] || '');
+    });
+  }
+
   removeSelectedItem(kind = this.selectedKind) {
     const key = kind === 'entities' ? 'floorplan_entities' : 'floorplan_rooms';
     if (this.selectedKind !== kind) {
@@ -1883,6 +2050,17 @@ class HaNeoDashboardEditor extends HTMLElement {
       this.shadowRoot?.querySelectorAll(`[data-item-field="${field}"]`).forEach((input) => {
         if (input !== source && nextValue !== undefined && nextValue !== null) {
           input.value = nextValue;
+        }
+      });
+    });
+
+    ['weather_forecast_count'].forEach((field) => {
+      if (field !== changedField) {
+        return;
+      }
+      this.shadowRoot?.querySelectorAll(`[data-weather-field="${field}"]`).forEach((input) => {
+        if (input !== source) {
+          input.value = value;
         }
       });
     });
@@ -1937,9 +2115,14 @@ class HaNeoDashboardEditor extends HTMLElement {
       h3 { margin: 0; font-size: 14px; }
       .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .field { display: grid; gap: 6px; min-width: 0; font-size: 12px; font-weight: 700; color: var(--secondary-text-color); }
-      .field input { min-width: 0; height: 36px; box-sizing: border-box; border: 1px solid var(--divider-color, rgba(127, 127, 127, .25)); border-radius: 8px; padding: 0 10px; background: var(--secondary-background-color, transparent); color: var(--primary-text-color); }
+      .field input, .field select { min-width: 0; height: 36px; box-sizing: border-box; border: 1px solid var(--divider-color, rgba(127, 127, 127, .25)); border-radius: 8px; padding: 0 10px; background: var(--secondary-background-color, transparent); color: var(--primary-text-color); }
       .toggle { grid-template-columns: auto 1fr; align-items: center; font-weight: 500; }
       .toggle input { width: 18px; height: 18px; padding: 0; }
+      .widget-toggles, .widget-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .widget-editor { display: grid; gap: 10px; min-width: 0; padding: 12px; border-radius: 12px; background: rgba(44, 156, 255, .07); border: 1px solid var(--divider-color, rgba(127, 127, 127, .18)); }
+      .widget-editor h4 { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; color: var(--primary-text-color); }
+      .entity-field { gap: 8px; }
+      .entity-field input { font-family: monospace; }
       .floorplan-workspace { position: relative; width: 100%; aspect-ratio: 1000 / 620; min-height: 300px; border-radius: 18px; overflow: hidden; background: radial-gradient(circle at center, rgba(44, 156, 255, .16), rgba(12, 15, 36, .62)); }
       .editor-floorplan-image, .editor-floorplan-svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
       .editor-floorplan-svg { color: rgba(255,255,255,.9); }
@@ -1964,7 +2147,7 @@ class HaNeoDashboardEditor extends HTMLElement {
       .number-field input[type="range"] { grid-column: 2; padding: 0; border: 0; accent-color: #2c9cff; }
       .number-field input[type="number"] { grid-column: 3; }
       textarea { width: 100%; min-height: 220px; box-sizing: border-box; border-radius: 10px; padding: 12px; border: 1px solid var(--divider-color, rgba(127, 127, 127, .25)); background: var(--secondary-background-color, transparent); color: var(--primary-text-color); font-family: monospace; font-size: 12px; }
-      @media (max-width: 720px) { .grid-2, .control-grid { grid-template-columns: 1fr; } .floorplan-workspace { min-height: 220px; } }
+      @media (max-width: 720px) { .grid-2, .control-grid, .widget-toggles, .widget-grid { grid-template-columns: 1fr; } .floorplan-workspace { min-height: 220px; } }
     `;
   }
 }
