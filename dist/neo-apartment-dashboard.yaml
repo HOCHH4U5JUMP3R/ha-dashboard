@@ -157,6 +157,8 @@ views:
             icon: mdi:lightbulb-group
             x: 72
             y: 36
+            width: 14
+            height: 7
             tap_action:
               action: toggle
               entity: light.living_room_all
@@ -165,11 +167,15 @@ views:
             icon: mdi:thermometer
             x: 48
             y: 28
+            width: 13
+            height: 7
           - name: Büro Bewegung
             entity: binary_sensor.office_motion
             icon: mdi:motion-sensor
             x: 24
             y: 30
+            width: 12
+            height: 7
         scene_label: SZENE
         scene_entity: scene.living_room_evening
         temperature_entity: sensor.living_room_temperature
