@@ -1727,6 +1727,85 @@ class HaNeoDashboardEditor extends HTMLElement {
         </div>
       </section>
     `;
+
+    this.hydrateEditorControls();
+  }
+
+  renderSidebarWidgetsCard() {
+    const widgets = Array.isArray(this.config.left_sidebar_widgets) ? this.config.left_sidebar_widgets : (this.config.home_sidebar_widgets || []);
+    const weather = this.config.home_weather || {};
+    const calendar = this.config.home_calendar || {};
+
+    return `
+      <section class="editor-card">
+        <h3>Seitenleiste: Wetter & Kalender</h3>
+        <p class="hint">Diese Kacheln kannst du jetzt direkt im visuellen Karten-Editor konfigurieren. Die Entity-Auswahl speichert Home Assistant zusammen mit der Karten-Konfiguration.</p>
+        <div class="widget-toggles">
+          ${this.widgetToggle('weather', 'Wetter-Kachel anzeigen', widgets.includes('weather'))}
+          ${this.widgetToggle('calendar', 'Kalender-Kachel anzeigen', widgets.includes('calendar'))}
+        </div>
+        <div class="widget-grid">
+          <section class="widget-editor">
+            <h4><ha-icon icon="mdi:weather-partly-cloudy"></ha-icon> Wetter</h4>
+            ${this.entityControl('weather_entity', 'Wetter-Entity', this.config.weather_entity || '', 'weather')}
+            ${this.textControl('weather_title', 'Titel', weather.title || 'Wetter', 'weather')}
+            ${this.textControl('weather_label', 'Eigene Zustandszeile', weather.label || '', 'weather')}
+            ${this.textControl('weather_icon', 'Icon', weather.icon || '', 'weather')}
+            ${this.numberControl('weather_forecast_count', 'Vorhersage-Tage', weather.forecast_count ?? 4, 'weather', { min: 0, max: 7, step: 1 })}
+          </section>
+          <section class="widget-editor">
+            <h4><ha-icon icon="mdi:calendar-month"></ha-icon> Kalender</h4>
+            ${this.entityControl('calendar_entity', 'Kalender-Entity', this.config.calendar_entity || '', 'calendar')}
+            ${this.textControl('calendar_title', 'Titel', calendar.title || 'Kalender', 'calendar')}
+            ${this.textControl('calendar_subtitle', 'Untertitel', calendar.subtitle || '', 'calendar')}
+            ${this.textControl('calendar_message', 'Eigener Termintext', calendar.message || '', 'calendar')}
+            ${this.textControl('calendar_icon', 'Icon', calendar.icon || '', 'calendar')}
+          </section>
+        </div>
+      </section>
+    `;
+  }
+
+  widgetToggle(widget, label, checked) {
+    return `
+      <label class="field toggle">
+        <input type="checkbox" ${checked ? 'checked' : ''} data-widget-toggle="${escapeAttr(widget)}">
+        <span>${escapeHtml(label)}</span>
+      </label>
+    `;
+  }
+
+  entityControl(field, label, value, domain) {
+    const options = this.entityOptions(domain, value);
+    return `
+      <div class="field entity-field">
+        <span>${escapeHtml(label)}</span>
+        <select data-config-field="${escapeAttr(field)}" data-entity-domain="${escapeAttr(domain)}">
+          ${options.map((option) => `<option value="${escapeAttr(option.value)}" ${option.value === value ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
+        </select>
+        <input type="text" value="${escapeAttr(value)}" placeholder="${escapeAttr(`${domain}.deine_entity`)}" data-config-field="${escapeAttr(field)}" data-entity-domain="${escapeAttr(domain)}">
+      </div>
+    `;
+  }
+
+  entityOptions(domain, currentValue = '') {
+    const states = Object.values(this._hass?.states || {})
+      .filter((state) => state.entity_id?.startsWith(`${domain}.`))
+      .map((state) => ({
+        value: state.entity_id,
+        label: `${state.attributes?.friendly_name || state.entity_id} (${state.entity_id})`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'de'));
+
+    if (currentValue && !states.some((state) => state.value === currentValue)) {
+      states.unshift({ value: currentValue, label: currentValue });
+    }
+
+    if (!states.length) {
+      states.push({ value: '', label: `Keine ${domain}.* Entity gefunden - unten manuell eintragen` });
+    }
+
+    return states;
   }
 
   renderYamlEditorTab() {
