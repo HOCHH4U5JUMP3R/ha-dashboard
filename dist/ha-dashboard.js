@@ -1,7 +1,7 @@
 class HaNeoDashboard extends HTMLElement {
   static getStubConfig() {
     return {
-      default_page: 'rooms',
+      default_page: 'home',
       default_room: 'living_room',
       rooms: DEFAULT_ROOMS,
       pages: DEFAULT_PAGES,
@@ -15,7 +15,7 @@ class HaNeoDashboard extends HTMLElement {
 
     this.config = mergeConfig(config);
     this.currentRoom = this.currentRoom || this.config.default_room || this.config.rooms[0]?.id || 'living_room';
-    this.currentPage = this.currentPage || this.config.default_page || this.config.pages[0]?.id || 'rooms';
+    this.currentPage = this.currentPage || this.config.default_page || this.config.pages[0]?.id || 'home';
   }
 
   set hass(hass) {
@@ -49,12 +49,12 @@ class HaNeoDashboard extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>${this.styles}</style>
       <ha-card style="${this.backgroundStyle}">
-        <section class="dashboard-shell ${page && page.type !== 'rooms' && page.type !== 'overview' ? 'is-content-page' : ''}">
+        <section class="dashboard-shell">
+          ${this.renderTopBar(page)}
           ${this.renderLeftPanel()}
           <main class="content-panel">
-            ${page?.type === 'rooms' ? this.renderRooms() : page?.type === 'overview' ? this.renderÜbersicht() : this.renderPage(page)}
+            ${page?.type === 'home' ? this.renderHome() : page?.type === 'rooms' ? this.renderRooms() : page?.type === 'overview' ? this.renderÜbersicht() : this.renderPage(page)}
           </main>
-          ${page && page.type !== 'rooms' && page.type !== 'overview' ? '' : this.renderRightPanel(page)}
           ${this.renderNavigation()}
         </section>
       </ha-card>
@@ -63,17 +63,110 @@ class HaNeoDashboard extends HTMLElement {
     this.hydrateCustomCards(page);
   }
 
+  renderTopBar(page) {
+    const title = page?.type === 'home'
+      ? (this.config.home_title || 'STARTSEITE')
+      : (page?.title || this.activeConfig.title || this.config.title);
+    const subtitle = page?.type === 'home'
+      ? (this.config.home_subtitle || 'Wohnung')
+      : (page?.subtitle || this.activeConfig.subtitle || this.config.subtitle);
+    const presence = this.config.presence || [];
+
+    return `
+      <header class="top-bar">
+        <section class="presence-strip" aria-label="Anwesenheit">
+          <span class="presence-label">Anwesenheit</span>
+          <div class="presence-avatars">
+            ${presence.map((person) => this.renderPresenceAvatar(person)).join('')}
+          </div>
+        </section>
+        <button class="top-title" type="button" data-action='${jsonAttr(page?.tap_action || { action: 'none' })}'>
+          <strong>${escapeHtml(title)}</strong>
+          <small>${escapeHtml(subtitle || '')}</small>
+        </button>
+        <button class="top-action" type="button" data-action='${jsonAttr(this.config.close_action || { action: 'navigate', navigation_path: '/lovelace' })}'>
+          <ha-icon icon="${escapeAttr(this.config.close_icon || 'mdi:close-circle-outline')}"></ha-icon>
+        </button>
+      </header>
+    `;
+  }
+
+  renderPresenceAvatar(person) {
+    const resolvedPerson = resolveRoomValue(person, this.activeRoom);
+    const state = resolvedPerson.entity ? this._hass.states[resolvedPerson.entity] : undefined;
+    const home = ['home', 'on', 'present'].includes(state?.state);
+    const label = state ? this.formatState(state) : (resolvedPerson.label || '—');
+
+    return `
+      <button class="presence-avatar ${home ? 'is-home' : ''}" type="button" title="${escapeAttr(resolvedPerson.name || resolvedPerson.entity || '')}: ${escapeAttr(label)}" data-action='${jsonAttr(actionFor(resolvedPerson))}'>
+        <ha-icon icon="${escapeAttr(resolvedPerson.icon || 'mdi:account-circle')}"></ha-icon>
+      </button>
+    `;
+  }
+
+  renderHome() {
+    return `
+      ${this.renderTitle(this.config.home_title || 'STARTSEITE', this.config.home_subtitle || 'Wohnung')}
+      <section class="floorplan-wrap">
+        ${this.config.apartment_floorplan_image ? `<img class="floorplan-image" src="${escapeAttr(this.config.apartment_floorplan_image)}" alt="${escapeAttr(this.config.home_title || 'Wohnungsplan')}">` : this.renderInlineFloorplan()}
+        ${(this.config.floorplan_rooms || []).map((room) => this.renderFloorplanRoom(room)).join('')}
+        ${(this.config.floorplan_entities || []).map((entity) => this.renderFloorplanEntity(entity)).join('')}
+      </section>
+    `;
+  }
+
+  renderInlineFloorplan() {
+    return `
+      <svg class="floorplan-svg" viewBox="0 0 1000 620" role="img" aria-label="2D Wohnungsplan">
+        <rect class="floorplan-wall" x="90" y="70" width="760" height="470"></rect>
+        <path class="floorplan-wall" d="M390 70v240M575 70v240M90 310h180M335 310h205M575 350h275M280 540V430h190v110M470 540V430h95v110M850 250h55v130h-55M850 410h45v75h-45"></path>
+        <path class="floorplan-door" d="M270 310h65M540 310h35M90 395h75M220 395h180M470 395h95"></path>
+        <text x="225" y="195">Büro</text>
+        <text x="465" y="195">Küche</text>
+        <text x="680" y="185">Wohnzimmer</text>
+        <text x="905" y="315" transform="rotate(90 905 315)">Balkon</text>
+        <text x="305" y="355">Flur</text>
+        <text x="305" y="485">Badezimmer</text>
+        <text x="505" y="470">Abstell.</text>
+        <text x="660" y="455">Schlafzimmer</text>
+      </svg>
+    `;
+  }
+
+  renderFloorplanRoom(room) {
+    const resolvedRoom = resolveRoomValue(room, this.activeRoom);
+    return `
+      <button class="floorplan-room-hotspot" type="button" style="left:${Number(resolvedRoom.x) || 50}%;top:${Number(resolvedRoom.y) || 50}%;width:${Number(resolvedRoom.width) || 16}%;height:${Number(resolvedRoom.height) || 12}%" data-room="${escapeAttr(resolvedRoom.room || resolvedRoom.id || '')}" data-action='${jsonAttr(actionFor(resolvedRoom))}'>
+        <span>${escapeHtml(resolvedRoom.label || resolvedRoom.name || '')}</span>
+      </button>
+    `;
+  }
+
+  renderFloorplanEntity(item) {
+    const resolvedItem = resolveRoomValue(item, this.activeRoom);
+    const state = resolvedItem.entity ? this._hass.states[resolvedItem.entity] : undefined;
+    const active = ['on', 'open', 'heat', 'cool', 'playing', 'home'].includes(state?.state);
+    const label = resolvedItem.label || (state ? `${this.formatState(state)}${this.unitSuffix(state)}` : resolvedItem.name || '');
+
+    return `
+      <button class="floorplan-entity ${active ? 'active' : ''}" type="button" style="left:${Number(resolvedItem.x) || 50}%;top:${Number(resolvedItem.y) || 50}%" data-action='${jsonAttr(actionFor(resolvedItem))}' title="${escapeAttr(resolvedItem.name || resolvedItem.entity || '')}">
+        <ha-icon icon="${escapeAttr(resolvedItem.icon || iconForDomain(resolvedItem.entity?.split('.')[0]))}"></ha-icon>
+        ${label ? `<span>${escapeHtml(label)}</span>` : ''}
+      </button>
+    `;
+  }
+
   renderLeftPanel() {
     const page = this.activePage;
     if (page?.id === 'server') {
       return this.renderServerStatusPanel(page);
     }
 
-    const cfg = page?.type === 'rooms'
+    const cfg = page?.type === 'home' || page?.type === 'rooms'
       ? {
-        top_tabs: this.config.room_overview_top_tabs || [],
-        systems: this.config.room_overview_systems || [],
-        metrics: this.config.room_overview_metrics || [],
+        top_tabs: this.config.home_top_tabs || this.config.room_overview_top_tabs || [],
+        systems: this.config.home_systems || this.config.room_overview_systems || [],
+        metrics: this.config.home_metrics || this.config.room_overview_metrics || [],
       }
       : this.activeConfig;
 
@@ -797,22 +890,35 @@ class HaNeoDashboard extends HTMLElement {
       .dashboard-shell {
         box-sizing: border-box;
         display: grid;
-        grid-template-columns: minmax(230px, 280px) minmax(360px, 1fr) minmax(272px, 312px);
-        grid-template-rows: 1fr 76px;
+        grid-template-columns: minmax(240px, 310px) minmax(360px, 1fr);
+        grid-template-rows: 116px 1fr 76px;
         grid-template-areas:
-          'left content right'
-          'left nav right';
-        gap: 16px;
+          'top top'
+          'left content'
+          'nav nav';
+        gap: 16px 22px;
         height: 100dvh;
         min-height: 100dvh;
-        padding: 34px 56px 0 28px;
+        padding: 20px 28px 0;
         background: rgba(5, 8, 26, .2);
         backdrop-filter: saturate(120%);
         position: relative;
       }
-      .left-panel { grid-area: left; }
-      .content-panel { grid-area: content; display: grid; align-content: start; justify-items: center; min-width: 0; }
-      .right-panel { grid-area: right; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; padding-right: 18px; }
+      .top-bar { grid-area: top; display: grid; grid-template-columns: minmax(240px, 310px) 1fr 64px; align-items: center; gap: 22px; border-bottom: 1px solid rgba(169, 181, 232, .34); padding-bottom: 16px; }
+      .presence-strip { display: grid; gap: 10px; align-content: center; }
+      .presence-label { color: var(--neo-muted); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+      .presence-avatars { display: flex; gap: 10px; align-items: center; }
+      .presence-avatar { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: rgba(20, 24, 57, .72); border: 1px solid rgba(169, 181, 232, .28); color: var(--neo-muted); box-shadow: 0 12px 24px rgba(0, 0, 0, .18); }
+      .presence-avatar.is-home { color: var(--neo-blue); border-color: rgba(44, 156, 255, .72); box-shadow: 0 0 22px rgba(44, 156, 255, .22); }
+      .presence-avatar ha-icon { width: 27px; height: 27px; }
+      .top-title { justify-self: center; min-width: 240px; padding: 13px 28px 11px; border: 1px solid rgba(169, 181, 232, .42); border-radius: 9px; background: rgba(12, 15, 36, .58); text-align: center; box-shadow: inset 0 0 24px rgba(44, 156, 255, .06); }
+      .top-title strong { display: block; font-size: 22px; font-weight: 600; letter-spacing: .04em; }
+      .top-title small { display: block; margin-top: 7px; color: var(--neo-muted); font-size: 11px; }
+      .top-action { justify-self: end; width: 50px; height: 50px; display: grid; place-items: center; border-radius: 50%; background: rgba(20, 24, 57, .56); color: var(--neo-blue); }
+      .top-action ha-icon { width: 36px; height: 36px; }
+      .left-panel { grid-area: left; min-height: 0; overflow: hidden auto; padding-bottom: 8px; }
+      .content-panel { grid-area: content; display: grid; align-content: start; justify-items: center; min-width: 0; min-height: 0; overflow: hidden auto; padding-bottom: 12px; }
+      .right-panel { display: none; }
       .tabs { display: flex; margin-bottom: 30px; }
       .tab { min-width: 104px; min-height: 48px; padding: 0 16px; border: 1px solid rgba(170, 180, 230, .35); background: rgba(16, 19, 45, .55); border-radius: 6px; font-size: 12px; font-weight: 800; }
       .tab-active { background: rgba(255, 255, 255, .96); color: #101225; }
@@ -854,10 +960,20 @@ class HaNeoDashboard extends HTMLElement {
       .quick-chips { display: flex; gap: 10px; justify-content: center; margin-top: 42px; padding: 24px 60px; background: radial-gradient(circle at center, rgba(123, 145, 255, .32), transparent 58%); }
       .chip { display: inline-flex; gap: 7px; align-items: center; border-radius: 999px; padding: 7px 12px; background: rgba(22, 27, 68, .76); color: var(--neo-text); }
       .chip ha-icon { width: 18px; color: var(--neo-blue); }
+      .floorplan-wrap { position: relative; width: min(940px, 100%); aspect-ratio: 1000 / 620; border-radius: 26px; background: radial-gradient(circle at 50% 50%, rgba(86, 116, 255, .12), rgba(12, 15, 36, .34)); filter: drop-shadow(0 34px 44px rgba(95, 125, 255, .20)); overflow: hidden; }
+      .floorplan-image, .floorplan-svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+      .floorplan-svg { color: rgba(255, 255, 255, .9); }
+      .floorplan-wall { fill: none; stroke: rgba(224, 228, 255, .72); stroke-width: 8; stroke-linecap: square; stroke-linejoin: miter; filter: drop-shadow(0 0 10px rgba(255, 255, 255, .18)); }
+      .floorplan-door { fill: none; stroke: rgba(12, 15, 36, .95); stroke-width: 11; stroke-linecap: round; }
+      .floorplan-svg text { fill: var(--neo-text); font-size: 34px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: rgba(10, 12, 30, .9); stroke-width: 4px; }
+      .floorplan-room-hotspot { position: absolute; transform: translate(-50%, -50%); border-radius: 18px; background: rgba(44, 156, 255, .06); border: 1px solid transparent; color: transparent; }
+      .floorplan-room-hotspot:hover, .floorplan-room-hotspot:focus-visible { background: rgba(44, 156, 255, .16); border-color: rgba(44, 156, 255, .45); color: var(--neo-text); }
+      .floorplan-room-hotspot span { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 12px; font-weight: 800; white-space: nowrap; }
+      .floorplan-entity { position: absolute; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 6px 9px; border-radius: 999px; background: rgba(13, 17, 43, .78); border: 1px solid rgba(169, 181, 232, .26); color: var(--neo-muted); box-shadow: 0 14px 26px rgba(0, 0, 0, .22); backdrop-filter: blur(8px); }
+      .floorplan-entity.active { color: var(--neo-blue); border-color: rgba(44, 156, 255, .65); box-shadow: 0 0 24px rgba(44, 156, 255, .22); }
+      .floorplan-entity ha-icon { width: 18px; height: 18px; }
+      .floorplan-entity span { font-size: 11px; font-weight: 800; }
       .page-grid, .rooms-grid { width: min(760px, 100%); display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 16px; }
-      .is-content-page { grid-template-columns: minmax(230px, 280px) minmax(0, 1fr); grid-template-areas: 'left content' 'left nav'; padding-right: 56px; }
-      .is-content-page .content-panel { align-content: start; overflow: hidden auto; padding-bottom: 18px; }
-      .is-content-page .room-title { margin-bottom: 24px; }
       .page-grid-wide, .full-page-grid, .server-layout { width: min(820px, 100%); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
       .full-page-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .span-2 { grid-column: span 2; }
@@ -946,10 +1062,10 @@ class HaNeoDashboard extends HTMLElement {
           height: min(100dvh, var(--neo-ipad-air-height));
           min-height: 0;
           margin: 0 auto;
-          grid-template-columns: 252px 1fr 292px;
-          grid-template-rows: 1fr 68px;
-          gap: 14px;
-          padding: 30px 64px 0 26px;
+          grid-template-columns: 252px 1fr;
+          grid-template-rows: 104px 1fr 68px;
+          gap: 14px 18px;
+          padding: 18px 34px 0 26px;
         }
         .tabs { margin-bottom: 24px; }
         .systems { gap: 18px; margin-bottom: 32px; }
@@ -967,7 +1083,6 @@ class HaNeoDashboard extends HTMLElement {
         .page-grid-wide, .full-page-grid, .server-layout, .custom-card-grid, .server-custom-card-grid { width: min(820px, 100%); gap: 10px; }
         .history-panel { min-height: 176px; }
         .history-panel svg { height: 76px; }
-        .is-content-page { grid-template-columns: 252px 1fr; grid-template-areas: 'left content' 'left nav'; padding-right: 64px; }
         .server-tile { min-height: 44px; padding: 8px 9px; }
         .rooms-grid { grid-template-columns: repeat(2, minmax(200px, 1fr)); }
         .room-card { min-height: 118px; padding: 14px; }
@@ -977,8 +1092,12 @@ class HaNeoDashboard extends HTMLElement {
       }
       @media (max-width: 1000px) {
         ha-card { min-height: 100dvh; height: auto; }
-        .dashboard-shell { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'content' 'right' 'left' 'nav'; padding: 24px 16px 0; min-height: 100dvh; }
-        .right-panel { grid-template-columns: repeat(2, minmax(140px, 1fr)); padding-right: 0; }
+        .dashboard-shell { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'top' 'content' 'left' 'nav'; padding: 18px 16px 0; min-height: 100dvh; }
+        .top-bar { grid-template-columns: 1fr auto; grid-template-areas: 'title action' 'presence presence'; }
+        .presence-strip { grid-area: presence; }
+        .top-title { grid-area: title; justify-self: stretch; min-width: 0; }
+        .top-action { grid-area: action; }
+        .floorplan-wrap { width: 100%; }
         .page-grid, .rooms-grid, .page-grid-wide, .full-page-grid, .server-layout, .custom-card-grid, .server-custom-card-grid { grid-template-columns: 1fr; }
         .span-2, .span-3, .span-4 { grid-column: auto; }
         .room-title { margin-bottom: 28px; }
@@ -1002,7 +1121,7 @@ const ROOM_SPECS = [
 const DEFAULT_ROOMS = ROOM_SPECS.map((room) => createRoom(room));
 
 const DEFAULT_PAGES = [
-  { id: 'rooms', label: 'Räume', title: 'RAUMÜBERSICHT', subtitle: 'Wohnung', icon: 'mdi:floor-plan', type: 'rooms' },
+  { id: 'home', label: 'Startseite', title: 'STARTSEITE', subtitle: 'Wohnung', icon: 'mdi:home-outline', type: 'home' },
   { id: 'overview', label: 'Übersicht', title: 'WOHNZIMMER', subtitle: 'Erdgeschoss', icon: 'mdi:rocket-launch', type: 'overview' },
   {
     id: 'climate', label: 'Klima', title: 'KLIMA', subtitle: '7 Tage Verlauf und Heizung', icon: 'mdi:heat-wave',
@@ -1020,6 +1139,15 @@ const DEFAULT_PAGES = [
     ],
   },
   {
+    id: 'power', label: 'Strom', title: 'STROM', subtitle: 'Verbrauch und Steckdosen', icon: 'mdi:flash-outline',
+    tiles: [
+      { name: 'Raumverbrauch', entity: 'sensor.{prefix}_power', icon: 'mdi:flash', tap_action: { action: 'more-info', entity: 'sensor.{prefix}_power' } },
+      { name: 'Tagesverbrauch', entity: 'sensor.{prefix}_energy_today', icon: 'mdi:chart-bar', tap_action: { action: 'more-info', entity: 'sensor.{prefix}_energy_today' } },
+      { name: 'Steckdose 1', entity: 'switch.{prefix}_socket_1', icon: 'mdi:power-socket-de', tap_action: { action: 'toggle', entity: 'switch.{prefix}_socket_1' } },
+      { name: 'Steckdose 2', entity: 'switch.{prefix}_socket_2', icon: 'mdi:power-socket-de', tap_action: { action: 'toggle', entity: 'switch.{prefix}_socket_2' } },
+    ],
+  },
+  {
     id: 'security', label: 'Sicherheit', title: 'SICHERHEIT', subtitle: 'Kamerafeed, Tür und Fenster', icon: 'mdi:shield-home-outline',
     tiles: [
       { name: 'Kamerafeed', entity: 'camera.{prefix}', icon: 'mdi:cctv', tap_action: { action: 'more-info', entity: 'camera.{prefix}' } },
@@ -1029,30 +1157,12 @@ const DEFAULT_PAGES = [
     ],
   },
   {
-    id: 'media', label: 'Medien', title: 'MEDIEN', subtitle: 'Xbox, PlayStation und Apple TV', icon: 'mdi:play-box-outline',
-    tiles: [
-      { name: 'Xbox', entity: 'media_player.{prefix}_xbox', icon: 'mdi:microsoft-xbox', tap_action: { action: 'toggle', entity: 'media_player.{prefix}_xbox' } },
-      { name: 'PlayStation', entity: 'media_player.{prefix}_playstation', icon: 'mdi:sony-playstation', tap_action: { action: 'toggle', entity: 'media_player.{prefix}_playstation' } },
-      { name: 'Apple TV', entity: 'media_player.{prefix}_apple_tv', icon: 'mdi:apple', tap_action: { action: 'toggle', entity: 'media_player.{prefix}_apple_tv' } },
-      { name: 'Play/Pause', icon: 'mdi:play-pause', label: 'Apple TV', tap_action: { action: 'call-service', service: 'media_player.media_play_pause', target: { entity_id: 'media_player.{prefix}_apple_tv' } } },
-    ],
-  },
-  {
-    id: 'maintenance', label: 'Wartung', title: 'WARTUNG', subtitle: 'Systemzustand', icon: 'mdi:router-wireless-settings',
+    id: 'system', label: 'System', title: 'SYSTEM', subtitle: 'Home Assistant und Dienste', icon: 'mdi:cog-outline',
     tiles: [
       { name: 'Backups', entity: 'sensor.backup_state', icon: 'mdi:cloud-upload', tap_action: { action: 'more-info', entity: 'sensor.backup_state' } },
       { name: 'CPU', entity: 'sensor.centauri_cpu', icon: 'mdi:cpu-64-bit', tap_action: { action: 'more-info', entity: 'sensor.centauri_cpu' } },
       { name: 'Speicher', entity: 'sensor.ganymede_storage', icon: 'mdi:harddisk', tap_action: { action: 'more-info', entity: 'sensor.ganymede_storage' } },
       { name: 'HA neu starten', icon: 'mdi:restart', label: 'Dienstaufruf', tap_action: { action: 'call-service', service: 'homeassistant.restart' } },
-    ],
-  },
-  {
-    id: 'presence', label: 'Anwesenheit', title: 'ANWESENHEIT', subtitle: 'Personen und Automationen', icon: 'mdi:map-marker-radius-outline',
-    tiles: [
-      { name: 'Person 1', entity: 'person.person_1', icon: 'mdi:account', tap_action: { action: 'more-info', entity: 'person.person_1' } },
-      { name: 'Person 2', entity: 'person.person_2', icon: 'mdi:account-outline', tap_action: { action: 'more-info', entity: 'person.person_2' } },
-      { name: 'Gastmodus', entity: 'input_boolean.guest_mode', icon: 'mdi:account-plus', tap_action: { action: 'toggle', entity: 'input_boolean.guest_mode' } },
-      { name: 'Abwesenheitsmodus', entity: 'input_boolean.away_mode', icon: 'mdi:home-export-outline', tap_action: { action: 'toggle', entity: 'input_boolean.away_mode' } },
     ],
   },
   {
@@ -1136,8 +1246,29 @@ const DEFAULT_CONFIG = {
   temperature_entity: 'sensor.living_room_temperature',
   humidity_entity: 'sensor.living_room_humidity',
   all_lights_entity: 'light.living_room_all',
+  home_title: 'STARTSEITE',
+  home_subtitle: 'Wohnung',
+  apartment_floorplan_image: '',
+  presence: [
+    { name: 'Person 1', entity: 'person.person_1', icon: 'mdi:account', tap_action: { action: 'more-info', entity: 'person.person_1' } },
+    { name: 'Person 2', entity: 'person.person_2', icon: 'mdi:account-outline', tap_action: { action: 'more-info', entity: 'person.person_2' } },
+  ],
+  floorplan_rooms: [
+    { label: 'Büro', room: 'office', x: 24, y: 30, width: 25, height: 34 },
+    { label: 'Küche', room: 'kitchen', x: 48, y: 30, width: 20, height: 34 },
+    { label: 'Wohnzimmer', room: 'living_room', x: 72, y: 34, width: 30, height: 42 },
+    { label: 'Badezimmer', room: 'bathroom', x: 35, y: 75, width: 20, height: 26 },
+    { label: 'Schlafzimmer', room: 'bedroom', x: 70, y: 73, width: 30, height: 34 },
+  ],
+  floorplan_entities: [
+    { name: 'Wohnzimmer Licht', entity: 'light.living_room_all', icon: 'mdi:lightbulb-group', x: 72, y: 36, tap_action: { action: 'toggle', entity: 'light.living_room_all' } },
+    { name: 'Küche Temperatur', entity: 'sensor.kitchen_temperature', icon: 'mdi:thermometer', x: 48, y: 28 },
+    { name: 'Büro Bewegung', entity: 'binary_sensor.office_motion', icon: 'mdi:motion-sensor', x: 24, y: 30 },
+    { name: 'Haustür', entity: 'binary_sensor.living_room_door', icon: 'mdi:door', x: 59, y: 57 },
+    { name: 'Schlafzimmer Licht', entity: 'light.bedroom_all', icon: 'mdi:lightbulb-outline', x: 70, y: 73, tap_action: { action: 'toggle', entity: 'light.bedroom_all' } },
+  ],
   default_room: 'living_room',
-  default_page: 'rooms',
+  default_page: 'home',
   top_tabs: [
     { label: 'SYSTEM', tap_action: { action: 'none' } },
     { label: 'WARTUNG', tap_action: { action: 'navigate', navigation_path: '/lovelace/maintenance' } },
@@ -1422,6 +1553,12 @@ function mergeConfig(config) {
     metrics: config.metrics || DEFAULT_CONFIG.metrics,
     gauges: config.gauges || DEFAULT_CONFIG.gauges,
     room_overview_gauges: config.room_overview_gauges || DEFAULT_CONFIG.room_overview_gauges,
+    home_top_tabs: config.home_top_tabs || DEFAULT_CONFIG.home_top_tabs || config.room_overview_top_tabs || DEFAULT_CONFIG.room_overview_top_tabs,
+    home_systems: config.home_systems || DEFAULT_CONFIG.home_systems || config.room_overview_systems || DEFAULT_CONFIG.room_overview_systems,
+    home_metrics: config.home_metrics || DEFAULT_CONFIG.home_metrics || config.room_overview_metrics || DEFAULT_CONFIG.room_overview_metrics,
+    presence: config.presence || DEFAULT_CONFIG.presence,
+    floorplan_rooms: config.floorplan_rooms || DEFAULT_CONFIG.floorplan_rooms,
+    floorplan_entities: config.floorplan_entities || DEFAULT_CONFIG.floorplan_entities,
     room_overview_top_tabs: config.room_overview_top_tabs || DEFAULT_CONFIG.room_overview_top_tabs,
     room_overview_systems: config.room_overview_systems || DEFAULT_CONFIG.room_overview_systems,
     room_overview_metrics: config.room_overview_metrics || DEFAULT_CONFIG.room_overview_metrics,
