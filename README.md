@@ -71,7 +71,7 @@ Alle sichtbaren Bereiche sind über YAML konfigurierbar:
 | `presence` | Personen/Anwesenheits-Entities in der oberen Leiste. |
 | `apartment_floorplan_image` | Startseiten-/Floorplan-Hintergrundbild; standardmäßig `/local/community/ha-dashboard-assets/home.svg`, leer lassen für den integrierten SVG-Plan. |
 | `floorplan_rooms` | Raum-Hotspots auf dem Grundriss, die den aktiven Raum wechseln; Position und Größe sind über `x`, `y`, `width` und `height` konfigurierbar. |
-| `floorplan_entities` | Frei platzierbare Entity-Chips auf dem Grundriss mit `x`, `y`, `width`, `height`, optionalem `icon_size` und normaler `tap_action`. |
+| `floorplan_entities` | Frei platzierbare Entity-Chips auf dem Grundriss mit `x`, `y`, `width`, `height`, optionalem `icon_size` und normaler `tap_action`; diese Werte können direkt über den visuellen Karten-Editor oder über **ANPASSEN/Plan anpassen** in der Karte verändert werden. |
 | `top_tabs` | Reiter links oben auf Raumseiten, z. B. System- und Wartungsaktionen. |
 | `room_overview_top_tabs` | Eigene Startseiten-Reiter, standardmäßig Kalender, Todo und Wetter. |
 | `systems` | Linke Statusliste mit Icon, Entity, Label, Farbe und Aktion auf Raumseiten. |
@@ -86,7 +86,7 @@ Alle sichtbaren Bereiche sind über YAML konfigurierbar:
 
 ## Startseite, Wohnungsplan und Räume
 
-Die Card startet standardmäßig mit `default_page: home`. Die Startseite zeigt dein Startseiten-/Floorplan-Hintergrundbild im Neo-Design. Räume und Entity-Chips werden bewusst über einfache YAML-Koordinaten gesetzt, damit du sie in Home Assistant schnell an einen neuen Floorplan anpassen kannst. Zahlenwerte werden als Prozentwerte interpretiert, du kannst aber auch CSS-Längen wie `120px`, `8rem` oder `12%` verwenden. Ohne eigenes Bild wird ein integrierter SVG-Grundriss verwendet; mit `apartment_floorplan_image` ist dein Plan unter `/local/community/ha-dashboard-assets/home.svg` vorkonfiguriert.
+Die Card startet standardmäßig mit `default_page: home`. Die Startseite zeigt dein Startseiten-/Floorplan-Hintergrundbild im Neo-Design. Beim Hinzufügen oder Bearbeiten der Karte öffnet Home Assistant jetzt einen eigenen visuellen **HA Neo Dashboard anpassen**-Editor mit großer Floorplan-Arbeitsfläche, Listen für Räume und Entitäten, Live-Reglern und fertiger YAML-Ausgabe. Damit bist du nicht mehr auf die schmale Standard-Vorschau neben dem YAML-Editor angewiesen. Zusätzlich gibt es auf der Dashboard-Startseite oben rechts den Button **ANPASSEN** und im Floorplan **Plan anpassen**. Dort kannst du das Floorplan-Bild eintragen, Räume und Entitäten auswählen, Name/Entity/Icon bearbeiten und `x`, `y`, `width`, `height` sowie bei Entitäten `icon_size` live ändern. Zahlenwerte werden als Prozentwerte interpretiert, du kannst aber auch CSS-Längen wie `120px`, `8rem` oder `12%` in YAML verwenden. Ohne eigenes Bild wird ein integrierter SVG-Grundriss verwendet; mit `apartment_floorplan_image` ist dein Plan unter `/local/community/ha-dashboard-assets/home.svg` vorkonfiguriert.
 
 Die vorkonfigurierten Räume sind:
 
@@ -128,7 +128,7 @@ rooms:
 
 
 
-Beispiel für einen eigenen interaktiven Startseiten-Grundriss:
+Die Werte, die du über **Plan anpassen** in der Karte veränderst, entsprechen diesen YAML-Feldern:
 
 ```yaml
 presence:
