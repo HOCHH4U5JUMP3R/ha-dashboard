@@ -123,8 +123,8 @@ views:
         floorplan_rooms:
           - label: Büro
             room: office
-            x: 742
-            y: 30
+            x: 60
+            y: 5
             width: 25
             height: 34
           - label: Küche
