@@ -1555,6 +1555,8 @@ class HaNeoDashboardEditor extends HTMLElement {
     this.config = this.normalizeConfig(config || {});
     this.selectedKind = this.selectedKind || 'rooms';
     this.selectedIndex = this.selectedIndex || 0;
+    this.selectedPageIndex = this.selectedPageIndex || 0;
+    this.editorTab = this.editorTab || 'sidebar';
     this.render();
     if (this.loadedFloorplanDraft && !this.floorplanDraftAnnounced) {
       this.floorplanDraftAnnounced = true;
@@ -1563,13 +1565,20 @@ class HaNeoDashboardEditor extends HTMLElement {
   }
 
   set hass(hass) {
+    const hadHass = Boolean(this._hass);
     this._hass = hass;
+    if (!hadHass && this.config) {
+      this.render();
+      return;
+    }
+    this.hydrateEditorControls();
   }
 
   connectedCallback() {
     this.addEventListener('click', this.handleClick);
     this.addEventListener('input', this.handleInput);
     this.addEventListener('change', this.handleInput);
+    this.addEventListener('value-changed', this.handleInput);
     this.addEventListener('pointerdown', this.handleWorkspacePointerDown);
     this.render();
   }
@@ -1578,6 +1587,7 @@ class HaNeoDashboardEditor extends HTMLElement {
     this.removeEventListener('click', this.handleClick);
     this.removeEventListener('input', this.handleInput);
     this.removeEventListener('change', this.handleInput);
+    this.removeEventListener('value-changed', this.handleInput);
     this.removeEventListener('pointerdown', this.handleWorkspacePointerDown);
   }
 
@@ -1589,6 +1599,13 @@ class HaNeoDashboardEditor extends HTMLElement {
       default_page: configWithDraft.default_page || 'home',
       floorplan_editor: configWithDraft.floorplan_editor ?? true,
       apartment_floorplan_image: configWithDraft.apartment_floorplan_image ?? DEFAULT_CONFIG.apartment_floorplan_image,
+      weather_entity: configWithDraft.weather_entity || configWithDraft.home_weather?.entity || DEFAULT_CONFIG.weather_entity,
+      calendar_entity: configWithDraft.calendar_entity || configWithDraft.home_calendar?.entity || DEFAULT_CONFIG.calendar_entity,
+      left_sidebar_widgets: configWithDraft.left_sidebar_widgets === false ? [] : Array.isArray(configWithDraft.left_sidebar_widgets) ? [...configWithDraft.left_sidebar_widgets] : [...(DEFAULT_CONFIG.left_sidebar_widgets || [])],
+      home_sidebar_widgets: configWithDraft.home_sidebar_widgets === false ? [] : Array.isArray(configWithDraft.home_sidebar_widgets) ? [...configWithDraft.home_sidebar_widgets] : [...(DEFAULT_CONFIG.home_sidebar_widgets || [])],
+      home_weather: { ...DEFAULT_CONFIG.home_weather, ...(configWithDraft.home_weather || {}) },
+      home_calendar: { ...DEFAULT_CONFIG.home_calendar, ...(configWithDraft.home_calendar || {}) },
+      pages: cloneList(configWithDraft.pages || DEFAULT_CONFIG.pages),
       floorplan_rooms: cloneList(configWithDraft.floorplan_rooms || DEFAULT_CONFIG.floorplan_rooms),
       floorplan_entities: cloneList(configWithDraft.floorplan_entities || DEFAULT_CONFIG.floorplan_entities),
     };
@@ -1604,51 +1621,249 @@ class HaNeoDashboardEditor extends HTMLElement {
     }
 
     this.ensureSelection();
-    const selected = this.selectedItem;
-    const selectedTitle = this.selectedKind === 'entities' ? 'Entität bearbeiten' : 'Raum bearbeiten';
 
     this.shadowRoot.innerHTML = `
       <style>${this.styles}</style>
       <section class="editor-shell">
         <header class="editor-head">
           <strong>HA Neo Dashboard anpassen</strong>
-          <small>Der Editor ist absichtlich hier im Karten-Dialog, damit du nicht im YAML suchen musst.</small>
+          <small>Der Editor ist in Tabs aufgeteilt. Eingaben werden lokal sofort übernommen und erst beim Verlassen/Bestätigen an Home Assistant gemeldet, damit Textfelder beim Tippen nicht den Fokus verlieren.</small>
         </header>
 
-        <section class="editor-card">
-          <h3>Große Floorplan-Arbeitsfläche</h3>
-          <label class="field wide">
-            <span>Floorplan-Bild</span>
-            <input type="text" value="${escapeAttr(this.config.apartment_floorplan_image || '')}" placeholder="/local/community/ha-dashboard-assets/home.svg" data-config-field="apartment_floorplan_image">
-          </label>
-          <label class="field toggle">
-            <input type="checkbox" ${this.config.floorplan_editor !== false ? 'checked' : ''} data-config-field="floorplan_editor">
-            <span>Button „Plan anpassen“ auch auf dem Dashboard anzeigen</span>
-          </label>
-          <div class="floorplan-workspace">
-            ${this.config.apartment_floorplan_image ? `<img class="editor-floorplan-image" src="${escapeAttr(this.config.apartment_floorplan_image)}" alt="Floorplan">` : editorInlineFloorplan()}
-            ${(this.config.floorplan_rooms || []).map((room, index) => this.renderWorkspaceItem('rooms', room, index)).join('')}
-            ${(this.config.floorplan_entities || []).map((entity, index) => this.renderWorkspaceItem('entities', entity, index)).join('')}
-          </div>
-          <p class="hint">Tipp: Ziehe Räume und Entitäten direkt an die gewünschte Stelle. Bei Räumen kannst du die Ecke unten rechts ziehen, um die Rechtecke zu vergrößern oder zu verkleinern.</p>
-        </section>
-
-        <section class="editor-card grid-2">
-          ${this.renderList('rooms', 'Räume', 'Raum hinzufügen')}
-          ${this.renderList('entities', 'Entitäten', 'Entität hinzufügen')}
-        </section>
-
-        <section class="editor-card">
-          <h3>${escapeHtml(selectedTitle)}</h3>
-          ${selected ? this.renderSelectedControls(selected) : '<p class="hint">Wähle einen Eintrag aus.</p>'}
-        </section>
-
-        <section class="editor-card">
-          <h3>Fertige Floorplan-Konfiguration</h3>
-          <textarea readonly>${escapeHtml(floorplanYaml(this.config))}</textarea>
-          <p class="hint">Home Assistant übernimmt Änderungen im visuellen Karten-Editor automatisch. Bei Bedarf kannst du diesen Block zusätzlich kopieren.</p>
-        </section>
+        ${this.renderEditorTabs()}
+        ${this.renderActiveEditorTab()}
       </section>
+    `;
+
+    this.hydrateEditorControls();
+  }
+
+  renderEditorTabs() {
+    const tabs = [
+      { id: 'sidebar', label: 'Seitenleiste', icon: 'mdi:view-sidebar' },
+      { id: 'main', label: 'Hauptinhalt', icon: 'mdi:floor-plan' },
+      { id: 'navigation', label: 'Menüleiste unten', icon: 'mdi:dock-bottom' },
+      { id: 'yaml', label: 'YAML', icon: 'mdi:code-braces' },
+    ];
+
+    return `
+      <nav class="editor-tabs" aria-label="Editor-Bereiche">
+        ${tabs.map((tab) => `
+          <button class="editor-tab ${this.editorTab === tab.id ? 'active' : ''}" type="button" data-editor-tab="${escapeAttr(tab.id)}">
+            <ha-icon icon="${escapeAttr(tab.icon)}"></ha-icon>
+            <span>${escapeHtml(tab.label)}</span>
+          </button>
+        `).join('')}
+      </nav>
+    `;
+  }
+
+  renderActiveEditorTab() {
+    if (this.editorTab === 'main') {
+      return this.renderMainEditorTab();
+    }
+    if (this.editorTab === 'navigation') {
+      return this.renderNavigationEditorTab();
+    }
+    if (this.editorTab === 'yaml') {
+      return this.renderYamlEditorTab();
+    }
+
+    return this.renderSidebarWidgetsCard();
+  }
+
+  renderMainEditorTab() {
+    const selected = this.selectedItem;
+    const selectedTitle = this.selectedKind === 'entities' ? 'Entität bearbeiten' : 'Raum bearbeiten';
+
+    return `
+      <section class="editor-card">
+        <h3>Große Floorplan-Arbeitsfläche</h3>
+        <label class="field wide">
+          <span>Floorplan-Bild</span>
+          <input type="text" value="${escapeAttr(this.config.apartment_floorplan_image || '')}" placeholder="/local/community/ha-dashboard-assets/home.svg" data-config-field="apartment_floorplan_image">
+        </label>
+        <label class="field toggle">
+          <input type="checkbox" ${this.config.floorplan_editor !== false ? 'checked' : ''} data-config-field="floorplan_editor">
+          <span>Button „Plan anpassen“ auch auf dem Dashboard anzeigen</span>
+        </label>
+        <div class="floorplan-workspace">
+          ${this.config.apartment_floorplan_image ? `<img class="editor-floorplan-image" src="${escapeAttr(this.config.apartment_floorplan_image)}" alt="Floorplan">` : editorInlineFloorplan()}
+          ${(this.config.floorplan_rooms || []).map((room, index) => this.renderWorkspaceItem('rooms', room, index)).join('')}
+          ${(this.config.floorplan_entities || []).map((entity, index) => this.renderWorkspaceItem('entities', entity, index)).join('')}
+        </div>
+        <p class="hint">Tipp: Ziehe Räume und Entitäten direkt an die gewünschte Stelle. Bei Räumen kannst du die Ecke unten rechts ziehen, um die Rechtecke zu vergrößern oder zu verkleinern.</p>
+      </section>
+
+      <section class="editor-card grid-2">
+        ${this.renderList('rooms', 'Räume', 'Raum hinzufügen')}
+        ${this.renderList('entities', 'Entitäten', 'Entität hinzufügen')}
+      </section>
+
+      <section class="editor-card">
+        <h3>${escapeHtml(selectedTitle)}</h3>
+        ${selected ? this.renderSelectedControls(selected) : '<p class="hint">Wähle einen Eintrag aus.</p>'}
+      </section>
+    `;
+  }
+
+  renderNavigationEditorTab() {
+    this.ensurePageSelection();
+    const pages = this.config.pages || [];
+    const page = this.selectedPage;
+
+    return `
+      <section class="editor-card">
+        <h3>Menüleiste unten</h3>
+        <p class="hint">Hier kannst du die Menüpunkte der unteren Navigation visuell bearbeiten: Beschriftung, Icon, Sichtbarkeit, Standardseite und neue eigene Seiten.</p>
+        <label class="field">
+          <span>Standardseite</span>
+          <select data-config-field="default_page">
+            ${pages.map((entry) => `<option value="${escapeAttr(entry.id)}" ${entry.id === this.config.default_page ? 'selected' : ''}>${escapeHtml(entry.label || entry.title || entry.id)}</option>`).join('')}
+          </select>
+        </label>
+        <div class="nav-editor-layout">
+          <section class="list-section">
+            <h3>Menüpunkte</h3>
+            <div class="item-list">
+              ${pages.map((entry, index) => `
+                <button class="${this.selectedPageIndex === index ? 'active' : ''}" type="button" data-page-select-index="${index}">
+                  <ha-icon icon="${escapeAttr(entry.icon || 'mdi:view-dashboard-outline')}"></ha-icon>
+                  <span>${escapeHtml(entry.label || entry.title || entry.id)}</span>
+                </button>
+              `).join('') || '<small>Noch keine Menüpunkte.</small>'}
+            </div>
+            <div class="list-actions">
+              <button class="secondary" type="button" data-add-page="true">Menüpunkt hinzufügen</button>
+              ${pages.length ? '<button class="secondary" type="button" data-move-page="up">Nach oben</button><button class="secondary" type="button" data-move-page="down">Nach unten</button><button class="secondary danger" type="button" data-remove-page="true">Auswahl entfernen</button>' : ''}
+            </div>
+          </section>
+
+          <section class="widget-editor">
+            <h4><ha-icon icon="mdi:dock-bottom"></ha-icon> Menüpunkt bearbeiten</h4>
+            ${page ? `
+              <div class="control-grid">
+                ${this.pageTextControl('id', 'ID', page.id || '')}
+                ${this.pageTextControl('label', 'Beschriftung unten', page.label || '')}
+                ${this.pageTextControl('title', 'Seitentitel', page.title || '')}
+                ${this.pageTextControl('subtitle', 'Untertitel', page.subtitle || '')}
+                ${this.pageIconControl('icon', 'Icon', page.icon || '')}
+                <label class="field">
+                  <span>Seitentyp</span>
+                  <select data-page-field="type">
+                    ${['custom', 'home', 'overview', 'rooms'].map((type) => `<option value="${type}" ${(page.type || 'custom') === type ? 'selected' : ''}>${type}</option>`).join('')}
+                  </select>
+                </label>
+                <label class="field toggle">
+                  <input type="checkbox" ${page.enabled !== false ? 'checked' : ''} data-page-toggle="enabled">
+                  <span>In der unteren Menüleiste anzeigen</span>
+                </label>
+                <label class="field toggle">
+                  <input type="checkbox" ${page.id === this.config.default_page ? 'checked' : ''} data-page-default="true">
+                  <span>Als Standardseite verwenden</span>
+                </label>
+              </div>
+            ` : '<p class="hint">Wähle einen Menüpunkt aus.</p>'}
+          </section>
+        </div>
+      </section>
+    `;
+  }
+
+  renderYamlEditorTab() {
+    return `
+      <section class="editor-card">
+        <h3>Fertige Floorplan-Konfiguration</h3>
+        <textarea readonly>${escapeHtml(floorplanYaml(this.config))}</textarea>
+        <p class="hint">Home Assistant übernimmt Änderungen im visuellen Karten-Editor automatisch. Bei Bedarf kannst du diesen Block zusätzlich kopieren.</p>
+      </section>
+    `;
+  }
+
+  renderSidebarWidgetsCard() {
+    const widgets = Array.isArray(this.config.left_sidebar_widgets) ? this.config.left_sidebar_widgets : (this.config.home_sidebar_widgets || []);
+    const weather = this.config.home_weather || {};
+    const calendar = this.config.home_calendar || {};
+
+    return `
+      <section class="editor-card">
+        <h3>Seitenleiste: Wetter & Kalender</h3>
+        <p class="hint">Diese Kacheln kannst du jetzt direkt im visuellen Karten-Editor konfigurieren. Die Entity-Auswahl speichert Home Assistant zusammen mit der Karten-Konfiguration.</p>
+        <div class="widget-toggles">
+          ${this.widgetToggle('weather', 'Wetter-Kachel anzeigen', widgets.includes('weather'))}
+          ${this.widgetToggle('calendar', 'Kalender-Kachel anzeigen', widgets.includes('calendar'))}
+        </div>
+        <div class="widget-grid">
+          <section class="widget-editor">
+            <h4><ha-icon icon="mdi:weather-partly-cloudy"></ha-icon> Wetter</h4>
+            ${this.entityControl('weather_entity', 'Wetter-Entity', this.config.weather_entity || '', 'weather')}
+            ${this.textControl('weather_title', 'Titel', weather.title || 'Wetter', 'weather')}
+            ${this.textControl('weather_label', 'Eigene Zustandszeile', weather.label || '', 'weather')}
+            ${this.iconControl('weather_icon', 'Icon', weather.icon || '', 'weather')}
+            ${this.numberControl('weather_forecast_count', 'Vorhersage-Tage', weather.forecast_count ?? 4, 'weather', { min: 0, max: 7, step: 1 })}
+          </section>
+          <section class="widget-editor">
+            <h4><ha-icon icon="mdi:calendar-month"></ha-icon> Kalender</h4>
+            ${this.entityControl('calendar_entity', 'Kalender-Entity', this.config.calendar_entity || '', 'calendar')}
+            ${this.textControl('calendar_title', 'Titel', calendar.title || 'Kalender', 'calendar')}
+            ${this.textControl('calendar_subtitle', 'Untertitel', calendar.subtitle || '', 'calendar')}
+            ${this.textControl('calendar_message', 'Eigener Termintext', calendar.message || '', 'calendar')}
+            ${this.iconControl('calendar_icon', 'Icon', calendar.icon || '', 'calendar')}
+          </section>
+        </div>
+      </section>
+    `;
+  }
+
+  widgetToggle(widget, label, checked) {
+    return `
+      <label class="field toggle">
+        <input type="checkbox" ${checked ? 'checked' : ''} data-widget-toggle="${escapeAttr(widget)}">
+        <span>${escapeHtml(label)}</span>
+      </label>
+    `;
+  }
+
+  entityControl(field, label, value, domain, group = 'config') {
+    const dataAttribute = group === 'item' ? 'data-item-field' : 'data-config-field';
+    return `
+      <label class="field picker-field">
+        <span>${escapeHtml(label)}</span>
+        <ha-entity-picker
+          allow-custom-entity
+          ${dataAttribute}="${escapeAttr(field)}"
+          data-entity-domain="${escapeAttr(domain)}"
+          value="${escapeAttr(value)}"
+        ></ha-entity-picker>
+      </label>
+    `;
+  }
+
+  iconControl(field, label, value, group = 'item') {
+    const dataAttribute = group === 'weather' ? 'data-weather-field' : group === 'calendar' ? 'data-calendar-field' : 'data-item-field';
+    return `
+      <label class="field picker-field">
+        <span>${escapeHtml(label)}</span>
+        <ha-icon-picker value="${escapeAttr(value)}" ${dataAttribute}="${escapeAttr(field)}"></ha-icon-picker>
+      </label>
+    `;
+  }
+
+  pageIconControl(field, label, value) {
+    return `
+      <label class="field picker-field">
+        <span>${escapeHtml(label)}</span>
+        <ha-icon-picker value="${escapeAttr(value)}" data-page-field="${escapeAttr(field)}"></ha-icon-picker>
+      </label>
+    `;
+  }
+
+  pageTextControl(field, label, value) {
+    return `
+      <label class="field">
+        <span>${escapeHtml(label)}</span>
+        <input type="text" value="${escapeAttr(value)}" data-page-field="${escapeAttr(field)}">
+      </label>
     `;
   }
 
@@ -1693,7 +1908,7 @@ class HaNeoDashboardEditor extends HTMLElement {
   renderSelectedControls(item) {
     const textControls = this.selectedKind === 'rooms'
       ? `${this.textControl('label', 'Name', item.label || item.name || '')}${this.textControl('room', 'Raum-ID', item.room || item.id || '')}`
-      : `${this.textControl('name', 'Name', item.name || item.label || '')}${this.textControl('entity', 'Entity', item.entity || '')}${this.textControl('icon', 'Icon', item.icon || '')}`;
+      : `${this.textControl('name', 'Name', item.name || item.label || '')}${this.entityControl('entity', 'Entity', item.entity || '', '', 'item')}${this.iconControl('icon', 'Icon', item.icon || '')}`;
     const iconControl = this.selectedKind === 'entities' ? this.textControl('icon_size', 'Icon-Größe', item.icon_size || '') : '';
 
     return `
@@ -1708,23 +1923,28 @@ class HaNeoDashboardEditor extends HTMLElement {
     `;
   }
 
-  textControl(field, label, value) {
+  textControl(field, label, value, group = 'item') {
+    const dataAttribute = group === 'weather' ? 'data-weather-field' : group === 'calendar' ? 'data-calendar-field' : 'data-item-field';
     return `
       <label class="field">
         <span>${escapeHtml(label)}</span>
-        <input type="text" value="${escapeAttr(value)}" data-item-field="${escapeAttr(field)}">
+        <input type="text" value="${escapeAttr(value)}" ${dataAttribute}="${escapeAttr(field)}">
       </label>
     `;
   }
 
-  numberControl(field, label, value) {
+  numberControl(field, label, value, group = 'item', options = {}) {
     const numericValue = Number.parseFloat(value);
     const displayValue = Number.isFinite(numericValue) ? numericValue : '';
+    const dataAttribute = group === 'weather' ? 'data-weather-field' : group === 'calendar' ? 'data-calendar-field' : 'data-item-field';
+    const min = options.min ?? 0;
+    const max = options.max ?? 100;
+    const step = options.step ?? 0.5;
     return `
       <label class="field number-field">
         <span>${escapeHtml(label)}</span>
-        <input type="range" min="0" max="100" step="0.5" value="${escapeAttr(displayValue)}" data-item-field="${escapeAttr(field)}">
-        <input type="number" min="0" max="100" step="0.5" value="${escapeAttr(displayValue)}" data-item-field="${escapeAttr(field)}">
+        <input type="range" min="${escapeAttr(min)}" max="${escapeAttr(max)}" step="${escapeAttr(step)}" value="${escapeAttr(displayValue)}" ${dataAttribute}="${escapeAttr(field)}">
+        <input type="number" min="${escapeAttr(min)}" max="${escapeAttr(max)}" step="${escapeAttr(step)}" value="${escapeAttr(displayValue)}" ${dataAttribute}="${escapeAttr(field)}">
       </label>
     `;
   }
@@ -1736,8 +1956,35 @@ class HaNeoDashboardEditor extends HTMLElement {
       return;
     }
 
-    const target = event.composedPath().find((node) => node?.dataset?.selectKind || node?.dataset?.addKind || node?.dataset?.removeKind);
+    const target = event.composedPath().find((node) => node?.dataset?.editorTab || node?.dataset?.selectKind || node?.dataset?.addKind || node?.dataset?.removeKind || node?.dataset?.pageSelectIndex || node?.dataset?.addPage || node?.dataset?.removePage || node?.dataset?.movePage);
     if (!target) {
+      return;
+    }
+
+    if (target.dataset.editorTab) {
+      this.editorTab = target.dataset.editorTab;
+      this.render();
+      return;
+    }
+
+    if (target.dataset.pageSelectIndex) {
+      this.selectedPageIndex = Number(target.dataset.pageSelectIndex || 0);
+      this.render();
+      return;
+    }
+
+    if (target.dataset.addPage) {
+      this.addPage();
+      return;
+    }
+
+    if (target.dataset.removePage) {
+      this.removeSelectedPage();
+      return;
+    }
+
+    if (target.dataset.movePage) {
+      this.moveSelectedPage(target.dataset.movePage);
       return;
     }
 
@@ -1759,15 +2006,45 @@ class HaNeoDashboardEditor extends HTMLElement {
   };
 
   handleInput = (event) => {
-    const target = event.composedPath().find((node) => node?.dataset?.configField || node?.dataset?.itemField);
+    const target = event.composedPath().find((node) => node?.dataset?.configField || node?.dataset?.itemField || node?.dataset?.weatherField || node?.dataset?.calendarField || node?.dataset?.widgetToggle || node?.dataset?.pageField || node?.dataset?.pageToggle || node?.dataset?.pageDefault);
     if (!target) {
+      return;
+    }
+
+    if (target.dataset.widgetToggle) {
+      this.toggleSidebarWidget(target.dataset.widgetToggle, target.checked);
+      this.configChanged({ render: true, dispatch: true });
       return;
     }
 
     if (target.dataset.configField) {
       const field = target.dataset.configField;
-      this.config[field] = target.type === 'checkbox' ? target.checked : target.value;
-      this.configChanged({ render: event.type === 'change' });
+      const value = event.type === 'value-changed' ? event.detail?.value : target.value;
+      this.config[field] = target.type === 'checkbox' ? target.checked : value;
+      this.syncWidgetActions(field);
+      this.syncEntityControls(field, this.config[field], target);
+      this.configChanged({
+        render: event.type === 'change' || event.type === 'value-changed',
+        dispatch: event.type === 'change' || event.type === 'value-changed',
+      });
+      return;
+    }
+
+    if (target.dataset.weatherField || target.dataset.calendarField) {
+      const isWeather = Boolean(target.dataset.weatherField);
+      const groupKey = isWeather ? 'home_weather' : 'home_calendar';
+      const field = (isWeather ? target.dataset.weatherField : target.dataset.calendarField).replace(/^weather_|^calendar_/, '');
+      const rawValue = event.type === 'value-changed' ? event.detail?.value : target.value;
+      const numericFields = ['forecast_count'];
+      this.config[groupKey] = { ...(this.config[groupKey] || {}), [field]: numericFields.includes(field) ? (rawValue === '' ? '' : Number(rawValue)) : rawValue };
+      this.syncEditorControls(isWeather ? `weather_${field}` : `calendar_${field}`, rawValue, target);
+      this.configChanged({ render: event.type === 'change', dispatch: event.type === 'change' });
+      return;
+    }
+
+    if (target.dataset.pageField || target.dataset.pageToggle || target.dataset.pageDefault) {
+      this.updateSelectedPageFromControl(target, event);
+      this.configChanged({ render: event.type === 'change' || event.type === 'value-changed', dispatch: event.type === 'change' || event.type === 'value-changed' });
       return;
     }
 
@@ -1777,11 +2054,12 @@ class HaNeoDashboardEditor extends HTMLElement {
     }
 
     const field = target.dataset.itemField;
+    const rawValue = event.type === 'value-changed' ? event.detail?.value : target.value;
     const numericFields = ['x', 'y', 'width', 'height'];
-    item[field] = numericFields.includes(field) ? (target.value === '' ? '' : Number(target.value)) : target.value;
+    item[field] = numericFields.includes(field) ? (rawValue === '' ? '' : Number(rawValue)) : rawValue;
     this.updateWorkspaceItemStyle();
-    this.syncEditorControls(field, target.value, target);
-    this.configChanged({ render: event.type === 'change' });
+    this.syncEditorControls(field, rawValue, target);
+    this.configChanged({ render: event.type === 'change', dispatch: event.type === 'change' });
   };
 
   handleWorkspacePointerDown = (event) => {
@@ -1832,7 +2110,7 @@ class HaNeoDashboardEditor extends HTMLElement {
 
       this.updateWorkspaceItemStyle(element);
       this.syncEditorControls();
-      this.configChanged({ render: false });
+      this.configChanged({ render: false, dispatch: false });
     };
 
     const onUp = () => {
@@ -1847,6 +2125,157 @@ class HaNeoDashboardEditor extends HTMLElement {
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp, { once: true });
   };
+
+  toggleSidebarWidget(widget, checked) {
+    const widgets = new Set(Array.isArray(this.config.left_sidebar_widgets) ? this.config.left_sidebar_widgets : []);
+    if (checked) {
+      widgets.add(widget);
+    } else {
+      widgets.delete(widget);
+    }
+    this.config.left_sidebar_widgets = ['weather', 'calendar'].filter((entry) => widgets.has(entry));
+  }
+
+  syncEntityControls(field, value, source) {
+    if (!['weather_entity', 'calendar_entity'].includes(field)) {
+      return;
+    }
+
+    this.shadowRoot?.querySelectorAll(`[data-config-field="${field}"]`).forEach((control) => {
+      if (control !== source) {
+        control.value = value || '';
+      }
+    });
+  }
+
+  syncWidgetActions(field) {
+    if (field === 'weather_entity') {
+      this.config.home_weather = { ...this.config.home_weather, entity: this.config.weather_entity };
+      if (this.config.home_weather?.tap_action?.action === 'more-info') {
+        this.config.home_weather = { ...this.config.home_weather, tap_action: { ...this.config.home_weather.tap_action, entity: this.config.weather_entity } };
+      }
+    }
+    if (field === 'calendar_entity') {
+      this.config.home_calendar = { ...this.config.home_calendar, entity: this.config.calendar_entity };
+      if (this.config.home_calendar?.tap_action?.action === 'more-info') {
+        this.config.home_calendar = { ...this.config.home_calendar, tap_action: { ...this.config.home_calendar.tap_action, entity: this.config.calendar_entity } };
+      }
+    }
+  }
+
+  hydrateEditorControls() {
+    if (!this.shadowRoot) {
+      return;
+    }
+
+    this.shadowRoot.querySelectorAll('ha-entity-picker').forEach((picker) => {
+      picker.hass = this._hass;
+      picker.value = this.controlValueForPicker(picker) || '';
+      if (picker.dataset.entityDomain) {
+        picker.includeDomains = [picker.dataset.entityDomain];
+      }
+    });
+
+    this.shadowRoot.querySelectorAll('ha-icon-picker').forEach((picker) => {
+      picker.hass = this._hass;
+      picker.value = this.controlValueForPicker(picker) || '';
+    });
+  }
+
+  controlValueForPicker(control) {
+    if (control.dataset.configField) {
+      return this.config?.[control.dataset.configField];
+    }
+    if (control.dataset.weatherField) {
+      return this.config?.home_weather?.[control.dataset.weatherField.replace(/^weather_/, '')];
+    }
+    if (control.dataset.calendarField) {
+      return this.config?.home_calendar?.[control.dataset.calendarField.replace(/^calendar_/, '')];
+    }
+    if (control.dataset.pageField) {
+      return this.selectedPage?.[control.dataset.pageField];
+    }
+    if (control.dataset.itemField) {
+      return this.selectedItem?.[control.dataset.itemField];
+    }
+    return '';
+  }
+
+  ensurePageSelection() {
+    const pages = this.config.pages || [];
+    if (pages[this.selectedPageIndex]) {
+      return;
+    }
+    this.selectedPageIndex = pages.length ? 0 : -1;
+  }
+
+  get selectedPage() {
+    this.ensurePageSelection();
+    return (this.config.pages || [])[this.selectedPageIndex];
+  }
+
+  updateSelectedPageFromControl(target, event) {
+    const page = this.selectedPage;
+    if (!page) {
+      return;
+    }
+
+    if (target.dataset.pageDefault) {
+      if (target.checked) {
+        this.config.default_page = page.id;
+      }
+      return;
+    }
+
+    if (target.dataset.pageToggle === 'enabled') {
+      page.enabled = target.checked;
+      return;
+    }
+
+    const field = target.dataset.pageField;
+    const previousId = page.id;
+    page[field] = event.type === 'value-changed' ? event.detail?.value : target.value;
+    if (field === 'id' && this.config.default_page === previousId) {
+      this.config.default_page = page.id;
+    }
+  }
+
+  addPage() {
+    const index = (this.config.pages || []).length + 1;
+    const id = `custom_${index}`;
+    this.config.pages = [...(this.config.pages || []), { id, label: `Custom ${index}`, title: `CUSTOM ${index}`, icon: 'mdi:view-dashboard-outline', type: 'custom', tiles: [] }];
+    this.selectedPageIndex = this.config.pages.length - 1;
+    this.configChanged();
+  }
+
+  removeSelectedPage() {
+    const page = this.selectedPage;
+    if (!page) {
+      return;
+    }
+
+    this.config.pages = (this.config.pages || []).filter((_, index) => index !== this.selectedPageIndex);
+    if (this.config.default_page === page.id) {
+      this.config.default_page = this.config.pages[0]?.id || 'home';
+    }
+    this.selectedPageIndex = Math.max(0, this.selectedPageIndex - 1);
+    this.ensurePageSelection();
+    this.configChanged();
+  }
+
+  moveSelectedPage(direction) {
+    const pages = [...(this.config.pages || [])];
+    const from = this.selectedPageIndex;
+    const to = direction === 'up' ? from - 1 : from + 1;
+    if (!pages[from] || !pages[to]) {
+      return;
+    }
+
+    [pages[from], pages[to]] = [pages[to], pages[from]];
+    this.config.pages = pages;
+    this.selectedPageIndex = to;
+    this.configChanged();
+  }
 
   removeSelectedItem(kind = this.selectedKind) {
     const key = kind === 'entities' ? 'floorplan_entities' : 'floorplan_rooms';
@@ -1886,6 +2315,17 @@ class HaNeoDashboardEditor extends HTMLElement {
         }
       });
     });
+
+    ['weather_forecast_count'].forEach((field) => {
+      if (field !== changedField) {
+        return;
+      }
+      this.shadowRoot?.querySelectorAll(`[data-weather-field="${field}"]`).forEach((input) => {
+        if (input !== source) {
+          input.value = value;
+        }
+      });
+    });
   }
 
   addItem(kind) {
@@ -1899,10 +2339,12 @@ class HaNeoDashboardEditor extends HTMLElement {
     this.configChanged();
   }
 
-  configChanged({ render = true } = {}) {
+  configChanged({ render = true, dispatch = true } = {}) {
     const config = { ...this.config };
     saveFloorplanDraft(config);
-    this.dispatchEvent(new CustomEvent('config-changed', { bubbles: true, composed: true, detail: { config } }));
+    if (dispatch) {
+      this.dispatchEvent(new CustomEvent('config-changed', { bubbles: true, composed: true, detail: { config } }));
+    }
     if (render) {
       this.render();
     }
@@ -1932,14 +2374,29 @@ class HaNeoDashboardEditor extends HTMLElement {
       :host { display: block; color: var(--primary-text-color); }
       .editor-shell { display: grid; gap: 14px; }
       .editor-head, .editor-card { display: grid; gap: 12px; padding: 14px; border-radius: 14px; background: var(--card-background-color, rgba(20, 24, 57, .08)); border: 1px solid var(--divider-color, rgba(127, 127, 127, .18)); }
+      .editor-tabs { display: flex; gap: 8px; padding: 6px; border-radius: 14px; background: var(--card-background-color, rgba(20, 24, 57, .08)); border: 1px solid var(--divider-color, rgba(127, 127, 127, .18)); overflow-x: auto; }
+      .editor-tab { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--secondary-text-color); font-weight: 800; white-space: nowrap; }
+      .editor-tab.active { background: rgba(44, 156, 255, .22); color: var(--primary-text-color); }
+      .editor-tab ha-icon { width: 18px; height: 18px; }
       .editor-head strong { font-size: 16px; }
       .editor-head small, .hint, small { color: var(--secondary-text-color); font-size: 12px; line-height: 1.4; }
       h3 { margin: 0; font-size: 14px; }
       .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .field { display: grid; gap: 6px; min-width: 0; font-size: 12px; font-weight: 700; color: var(--secondary-text-color); }
-      .field input { min-width: 0; height: 36px; box-sizing: border-box; border: 1px solid var(--divider-color, rgba(127, 127, 127, .25)); border-radius: 8px; padding: 0 10px; background: var(--secondary-background-color, transparent); color: var(--primary-text-color); }
+      .field input, .field select { min-width: 0; height: 36px; box-sizing: border-box; border: 1px solid var(--divider-color, rgba(127, 127, 127, .25)); border-radius: 8px; padding: 0 10px; background: var(--secondary-background-color, transparent); color: var(--primary-text-color); }
       .toggle { grid-template-columns: auto 1fr; align-items: center; font-weight: 500; }
       .toggle input { width: 18px; height: 18px; padding: 0; }
+      .widget-toggles, .widget-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .widget-editor { display: grid; gap: 10px; min-width: 0; padding: 12px; border-radius: 12px; background: rgba(44, 156, 255, .07); border: 1px solid var(--divider-color, rgba(127, 127, 127, .18)); }
+      .widget-editor h4 { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; color: var(--primary-text-color); }
+      .picker-field { gap: 8px; }
+      ha-entity-picker, ha-icon-picker { min-width: 0; }
+      .nav-editor-layout { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(280px, 1.2fr); gap: 12px; }
+      .item-list button ha-icon { width: 18px; height: 18px; margin-right: 6px; vertical-align: middle; }
+      .nav-preview-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+      .nav-preview-item { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; padding: 10px; border-radius: 10px; background: rgba(44, 156, 255, .08); }
+      .nav-preview-item ha-icon { grid-row: span 2; width: 22px; height: 22px; color: #2c9cff; }
+      .nav-preview-item b { font-size: 12px; }
       .floorplan-workspace { position: relative; width: 100%; aspect-ratio: 1000 / 620; min-height: 300px; border-radius: 18px; overflow: hidden; background: radial-gradient(circle at center, rgba(44, 156, 255, .16), rgba(12, 15, 36, .62)); }
       .editor-floorplan-image, .editor-floorplan-svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
       .editor-floorplan-svg { color: rgba(255,255,255,.9); }
@@ -1964,7 +2421,7 @@ class HaNeoDashboardEditor extends HTMLElement {
       .number-field input[type="range"] { grid-column: 2; padding: 0; border: 0; accent-color: #2c9cff; }
       .number-field input[type="number"] { grid-column: 3; }
       textarea { width: 100%; min-height: 220px; box-sizing: border-box; border-radius: 10px; padding: 12px; border: 1px solid var(--divider-color, rgba(127, 127, 127, .25)); background: var(--secondary-background-color, transparent); color: var(--primary-text-color); font-family: monospace; font-size: 12px; }
-      @media (max-width: 720px) { .grid-2, .control-grid { grid-template-columns: 1fr; } .floorplan-workspace { min-height: 220px; } }
+      @media (max-width: 720px) { .grid-2, .control-grid, .widget-toggles, .widget-grid, .nav-editor-layout { grid-template-columns: 1fr; } .floorplan-workspace { min-height: 220px; } }
     `;
   }
 }
