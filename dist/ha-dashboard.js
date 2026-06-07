@@ -1555,6 +1555,7 @@ class HaNeoDashboardEditor extends HTMLElement {
     this.config = this.normalizeConfig(config || {});
     this.selectedKind = this.selectedKind || 'rooms';
     this.selectedIndex = this.selectedIndex || 0;
+    this.selectedPageIndex = this.selectedPageIndex || 0;
     this.editorTab = this.editorTab || 'sidebar';
     this.render();
     if (this.loadedFloorplanDraft && !this.floorplanDraftAnnounced) {
@@ -1604,6 +1605,7 @@ class HaNeoDashboardEditor extends HTMLElement {
       home_sidebar_widgets: configWithDraft.home_sidebar_widgets === false ? [] : Array.isArray(configWithDraft.home_sidebar_widgets) ? [...configWithDraft.home_sidebar_widgets] : [...(DEFAULT_CONFIG.home_sidebar_widgets || [])],
       home_weather: { ...DEFAULT_CONFIG.home_weather, ...(configWithDraft.home_weather || {}) },
       home_calendar: { ...DEFAULT_CONFIG.home_calendar, ...(configWithDraft.home_calendar || {}) },
+      pages: cloneList(configWithDraft.pages || DEFAULT_CONFIG.pages),
       floorplan_rooms: cloneList(configWithDraft.floorplan_rooms || DEFAULT_CONFIG.floorplan_rooms),
       floorplan_entities: cloneList(configWithDraft.floorplan_entities || DEFAULT_CONFIG.floorplan_entities),
     };
@@ -1706,25 +1708,74 @@ class HaNeoDashboardEditor extends HTMLElement {
   }
 
   renderNavigationEditorTab() {
+    this.ensurePageSelection();
+    const pages = this.config.pages || [];
+    const page = this.selectedPage;
+
     return `
       <section class="editor-card">
         <h3>Menüleiste unten</h3>
-        <p class="hint">Dieser Tab ist die Basis für die nächsten visuellen Einstellungen der unteren Navigation. Aktuell kannst du hier die Startseite wählen und siehst die vorhandenen Menüpunkte.</p>
+        <p class="hint">Hier kannst du die Menüpunkte der unteren Navigation visuell bearbeiten: Beschriftung, Icon, Sichtbarkeit, Standardseite und neue eigene Seiten.</p>
         <label class="field">
           <span>Standardseite</span>
           <select data-config-field="default_page">
-            ${(this.config.pages || []).map((page) => `<option value="${escapeAttr(page.id)}" ${page.id === this.config.default_page ? 'selected' : ''}>${escapeHtml(page.label || page.title || page.id)}</option>`).join('')}
+            ${pages.map((entry) => `<option value="${escapeAttr(entry.id)}" ${entry.id === this.config.default_page ? 'selected' : ''}>${escapeHtml(entry.label || entry.title || entry.id)}</option>`).join('')}
           </select>
         </label>
-        <div class="nav-preview-list">
-          ${(this.config.pages || []).map((page) => `
-            <span class="nav-preview-item">
-              <ha-icon icon="${escapeAttr(page.icon || 'mdi:view-dashboard-outline')}"></ha-icon>
-              <b>${escapeHtml(page.label || page.title || page.id)}</b>
-              <small>${escapeHtml(page.id)}</small>
-            </span>
-          `).join('')}
+        <div class="nav-editor-layout">
+          <section class="list-section">
+            <h3>Menüpunkte</h3>
+            <div class="item-list">
+              ${pages.map((entry, index) => `
+                <button class="${this.selectedPageIndex === index ? 'active' : ''}" type="button" data-page-select-index="${index}">
+                  <ha-icon icon="${escapeAttr(entry.icon || 'mdi:view-dashboard-outline')}"></ha-icon>
+                  <span>${escapeHtml(entry.label || entry.title || entry.id)}</span>
+                </button>
+              `).join('') || '<small>Noch keine Menüpunkte.</small>'}
+            </div>
+            <div class="list-actions">
+              <button class="secondary" type="button" data-add-page="true">Menüpunkt hinzufügen</button>
+              ${pages.length ? '<button class="secondary" type="button" data-move-page="up">Nach oben</button><button class="secondary" type="button" data-move-page="down">Nach unten</button><button class="secondary danger" type="button" data-remove-page="true">Auswahl entfernen</button>' : ''}
+            </div>
+          </section>
+
+          <section class="widget-editor">
+            <h4><ha-icon icon="mdi:dock-bottom"></ha-icon> Menüpunkt bearbeiten</h4>
+            ${page ? `
+              <div class="control-grid">
+                ${this.pageTextControl('id', 'ID', page.id || '')}
+                ${this.pageTextControl('label', 'Beschriftung unten', page.label || '')}
+                ${this.pageTextControl('title', 'Seitentitel', page.title || '')}
+                ${this.pageTextControl('subtitle', 'Untertitel', page.subtitle || '')}
+                ${this.pageIconControl('icon', 'Icon', page.icon || '')}
+                <label class="field">
+                  <span>Seitentyp</span>
+                  <select data-page-field="type">
+                    ${['custom', 'home', 'overview', 'rooms'].map((type) => `<option value="${type}" ${(page.type || 'custom') === type ? 'selected' : ''}>${type}</option>`).join('')}
+                  </select>
+                </label>
+                <label class="field toggle">
+                  <input type="checkbox" ${page.enabled !== false ? 'checked' : ''} data-page-toggle="enabled">
+                  <span>In der unteren Menüleiste anzeigen</span>
+                </label>
+                <label class="field toggle">
+                  <input type="checkbox" ${page.id === this.config.default_page ? 'checked' : ''} data-page-default="true">
+                  <span>Als Standardseite verwenden</span>
+                </label>
+              </div>
+            ` : '<p class="hint">Wähle einen Menüpunkt aus.</p>'}
+          </section>
         </div>
+      </section>
+    `;
+  }
+
+  renderYamlEditorTab() {
+    return `
+      <section class="editor-card">
+        <h3>Fertige Floorplan-Konfiguration</h3>
+        <textarea readonly>${escapeHtml(floorplanYaml(this.config))}</textarea>
+        <p class="hint">Home Assistant übernimmt Änderungen im visuellen Karten-Editor automatisch. Bei Bedarf kannst du diesen Block zusätzlich kopieren.</p>
       </section>
     `;
 
@@ -1895,6 +1946,93 @@ class HaNeoDashboardEditor extends HTMLElement {
     return states;
   }
 
+  renderSidebarWidgetsCard() {
+    const widgets = Array.isArray(this.config.left_sidebar_widgets) ? this.config.left_sidebar_widgets : (this.config.home_sidebar_widgets || []);
+    const weather = this.config.home_weather || {};
+    const calendar = this.config.home_calendar || {};
+
+    return `
+      <section class="editor-card">
+        <h3>Seitenleiste: Wetter & Kalender</h3>
+        <p class="hint">Diese Kacheln kannst du jetzt direkt im visuellen Karten-Editor konfigurieren. Die Entity-Auswahl speichert Home Assistant zusammen mit der Karten-Konfiguration.</p>
+        <div class="widget-toggles">
+          ${this.widgetToggle('weather', 'Wetter-Kachel anzeigen', widgets.includes('weather'))}
+          ${this.widgetToggle('calendar', 'Kalender-Kachel anzeigen', widgets.includes('calendar'))}
+        </div>
+        <div class="widget-grid">
+          <section class="widget-editor">
+            <h4><ha-icon icon="mdi:weather-partly-cloudy"></ha-icon> Wetter</h4>
+            ${this.entityControl('weather_entity', 'Wetter-Entity', this.config.weather_entity || '', 'weather')}
+            ${this.textControl('weather_title', 'Titel', weather.title || 'Wetter', 'weather')}
+            ${this.textControl('weather_label', 'Eigene Zustandszeile', weather.label || '', 'weather')}
+            ${this.iconControl('weather_icon', 'Icon', weather.icon || '', 'weather')}
+            ${this.numberControl('weather_forecast_count', 'Vorhersage-Tage', weather.forecast_count ?? 4, 'weather', { min: 0, max: 7, step: 1 })}
+          </section>
+          <section class="widget-editor">
+            <h4><ha-icon icon="mdi:calendar-month"></ha-icon> Kalender</h4>
+            ${this.entityControl('calendar_entity', 'Kalender-Entity', this.config.calendar_entity || '', 'calendar')}
+            ${this.textControl('calendar_title', 'Titel', calendar.title || 'Kalender', 'calendar')}
+            ${this.textControl('calendar_subtitle', 'Untertitel', calendar.subtitle || '', 'calendar')}
+            ${this.textControl('calendar_message', 'Eigener Termintext', calendar.message || '', 'calendar')}
+            ${this.iconControl('calendar_icon', 'Icon', calendar.icon || '', 'calendar')}
+          </section>
+        </div>
+      </section>
+    `;
+  }
+
+  widgetToggle(widget, label, checked) {
+    return `
+      <label class="field toggle">
+        <input type="checkbox" ${checked ? 'checked' : ''} data-widget-toggle="${escapeAttr(widget)}">
+        <span>${escapeHtml(label)}</span>
+      </label>
+    `;
+  }
+
+  entityControl(field, label, value, domain, group = 'config') {
+    const dataAttribute = group === 'item' ? 'data-item-field' : 'data-config-field';
+    return `
+      <label class="field picker-field">
+        <span>${escapeHtml(label)}</span>
+        <ha-entity-picker
+          allow-custom-entity
+          ${dataAttribute}="${escapeAttr(field)}"
+          data-entity-domain="${escapeAttr(domain)}"
+          value="${escapeAttr(value)}"
+        ></ha-entity-picker>
+      </label>
+    `;
+  }
+
+  iconControl(field, label, value, group = 'item') {
+    const dataAttribute = group === 'weather' ? 'data-weather-field' : group === 'calendar' ? 'data-calendar-field' : 'data-item-field';
+    return `
+      <label class="field picker-field">
+        <span>${escapeHtml(label)}</span>
+        <ha-icon-picker value="${escapeAttr(value)}" ${dataAttribute}="${escapeAttr(field)}"></ha-icon-picker>
+      </label>
+    `;
+  }
+
+  pageIconControl(field, label, value) {
+    return `
+      <label class="field picker-field">
+        <span>${escapeHtml(label)}</span>
+        <ha-icon-picker value="${escapeAttr(value)}" data-page-field="${escapeAttr(field)}"></ha-icon-picker>
+      </label>
+    `;
+  }
+
+  pageTextControl(field, label, value) {
+    return `
+      <label class="field">
+        <span>${escapeHtml(label)}</span>
+        <input type="text" value="${escapeAttr(value)}" data-page-field="${escapeAttr(field)}">
+      </label>
+    `;
+  }
+
   renderWorkspaceItem(kind, item, index) {
     const active = this.selectedKind === kind && this.selectedIndex === index;
     const defaults = kind === 'rooms' ? { x: 50, y: 50, width: 16, height: 12 } : { x: 50, y: 50 };
@@ -1936,7 +2074,7 @@ class HaNeoDashboardEditor extends HTMLElement {
   renderSelectedControls(item) {
     const textControls = this.selectedKind === 'rooms'
       ? `${this.textControl('label', 'Name', item.label || item.name || '')}${this.textControl('room', 'Raum-ID', item.room || item.id || '')}`
-      : `${this.textControl('name', 'Name', item.name || item.label || '')}${this.textControl('entity', 'Entity', item.entity || '')}${this.textControl('icon', 'Icon', item.icon || '')}`;
+      : `${this.textControl('name', 'Name', item.name || item.label || '')}${this.entityControl('entity', 'Entity', item.entity || '', '', 'item')}${this.iconControl('icon', 'Icon', item.icon || '')}`;
     const iconControl = this.selectedKind === 'entities' ? this.textControl('icon_size', 'Icon-Größe', item.icon_size || '') : '';
 
     return `
@@ -1984,7 +2122,7 @@ class HaNeoDashboardEditor extends HTMLElement {
       return;
     }
 
-    const target = event.composedPath().find((node) => node?.dataset?.editorTab || node?.dataset?.selectKind || node?.dataset?.addKind || node?.dataset?.removeKind);
+    const target = event.composedPath().find((node) => node?.dataset?.editorTab || node?.dataset?.selectKind || node?.dataset?.addKind || node?.dataset?.removeKind || node?.dataset?.pageSelectIndex || node?.dataset?.addPage || node?.dataset?.removePage || node?.dataset?.movePage);
     if (!target) {
       return;
     }
@@ -1992,6 +2130,27 @@ class HaNeoDashboardEditor extends HTMLElement {
     if (target.dataset.editorTab) {
       this.editorTab = target.dataset.editorTab;
       this.render();
+      return;
+    }
+
+    if (target.dataset.pageSelectIndex) {
+      this.selectedPageIndex = Number(target.dataset.pageSelectIndex || 0);
+      this.render();
+      return;
+    }
+
+    if (target.dataset.addPage) {
+      this.addPage();
+      return;
+    }
+
+    if (target.dataset.removePage) {
+      this.removeSelectedPage();
+      return;
+    }
+
+    if (target.dataset.movePage) {
+      this.moveSelectedPage(target.dataset.movePage);
       return;
     }
 
@@ -2013,7 +2172,7 @@ class HaNeoDashboardEditor extends HTMLElement {
   };
 
   handleInput = (event) => {
-    const target = event.composedPath().find((node) => node?.dataset?.configField || node?.dataset?.itemField || node?.dataset?.weatherField || node?.dataset?.calendarField || node?.dataset?.widgetToggle);
+    const target = event.composedPath().find((node) => node?.dataset?.configField || node?.dataset?.itemField || node?.dataset?.weatherField || node?.dataset?.calendarField || node?.dataset?.widgetToggle || node?.dataset?.pageField || node?.dataset?.pageToggle || node?.dataset?.pageDefault);
     if (!target) {
       return;
     }
@@ -2041,10 +2200,17 @@ class HaNeoDashboardEditor extends HTMLElement {
       const isWeather = Boolean(target.dataset.weatherField);
       const groupKey = isWeather ? 'home_weather' : 'home_calendar';
       const field = (isWeather ? target.dataset.weatherField : target.dataset.calendarField).replace(/^weather_|^calendar_/, '');
+      const rawValue = event.type === 'value-changed' ? event.detail?.value : target.value;
       const numericFields = ['forecast_count'];
-      this.config[groupKey] = { ...(this.config[groupKey] || {}), [field]: numericFields.includes(field) ? (target.value === '' ? '' : Number(target.value)) : target.value };
-      this.syncEditorControls(isWeather ? `weather_${field}` : `calendar_${field}`, target.value, target);
+      this.config[groupKey] = { ...(this.config[groupKey] || {}), [field]: numericFields.includes(field) ? (rawValue === '' ? '' : Number(rawValue)) : rawValue };
+      this.syncEditorControls(isWeather ? `weather_${field}` : `calendar_${field}`, rawValue, target);
       this.configChanged({ render: event.type === 'change', dispatch: event.type === 'change' });
+      return;
+    }
+
+    if (target.dataset.pageField || target.dataset.pageToggle || target.dataset.pageDefault) {
+      this.updateSelectedPageFromControl(target, event);
+      this.configChanged({ render: event.type === 'change' || event.type === 'value-changed', dispatch: event.type === 'change' || event.type === 'value-changed' });
       return;
     }
 
@@ -2054,10 +2220,11 @@ class HaNeoDashboardEditor extends HTMLElement {
     }
 
     const field = target.dataset.itemField;
+    const rawValue = event.type === 'value-changed' ? event.detail?.value : target.value;
     const numericFields = ['x', 'y', 'width', 'height'];
-    item[field] = numericFields.includes(field) ? (target.value === '' ? '' : Number(target.value)) : target.value;
+    item[field] = numericFields.includes(field) ? (rawValue === '' ? '' : Number(rawValue)) : rawValue;
     this.updateWorkspaceItemStyle();
-    this.syncEditorControls(field, target.value, target);
+    this.syncEditorControls(field, rawValue, target);
     this.configChanged({ render: event.type === 'change', dispatch: event.type === 'change' });
   };
 
@@ -2167,9 +2334,113 @@ class HaNeoDashboardEditor extends HTMLElement {
       return;
     }
 
-    ['weather_entity', 'calendar_entity'].forEach((field) => {
-      this.syncEntityControls(field, this.config?.[field] || '');
+    this.shadowRoot.querySelectorAll('ha-entity-picker').forEach((picker) => {
+      picker.hass = this._hass;
+      picker.value = this.controlValueForPicker(picker) || '';
+      if (picker.dataset.entityDomain) {
+        picker.includeDomains = [picker.dataset.entityDomain];
+      }
     });
+
+    this.shadowRoot.querySelectorAll('ha-icon-picker').forEach((picker) => {
+      picker.hass = this._hass;
+      picker.value = this.controlValueForPicker(picker) || '';
+    });
+  }
+
+  controlValueForPicker(control) {
+    if (control.dataset.configField) {
+      return this.config?.[control.dataset.configField];
+    }
+    if (control.dataset.weatherField) {
+      return this.config?.home_weather?.[control.dataset.weatherField.replace(/^weather_/, '')];
+    }
+    if (control.dataset.calendarField) {
+      return this.config?.home_calendar?.[control.dataset.calendarField.replace(/^calendar_/, '')];
+    }
+    if (control.dataset.pageField) {
+      return this.selectedPage?.[control.dataset.pageField];
+    }
+    if (control.dataset.itemField) {
+      return this.selectedItem?.[control.dataset.itemField];
+    }
+    return '';
+  }
+
+  ensurePageSelection() {
+    const pages = this.config.pages || [];
+    if (pages[this.selectedPageIndex]) {
+      return;
+    }
+    this.selectedPageIndex = pages.length ? 0 : -1;
+  }
+
+  get selectedPage() {
+    this.ensurePageSelection();
+    return (this.config.pages || [])[this.selectedPageIndex];
+  }
+
+  updateSelectedPageFromControl(target, event) {
+    const page = this.selectedPage;
+    if (!page) {
+      return;
+    }
+
+    if (target.dataset.pageDefault) {
+      if (target.checked) {
+        this.config.default_page = page.id;
+      }
+      return;
+    }
+
+    if (target.dataset.pageToggle === 'enabled') {
+      page.enabled = target.checked;
+      return;
+    }
+
+    const field = target.dataset.pageField;
+    const previousId = page.id;
+    page[field] = event.type === 'value-changed' ? event.detail?.value : target.value;
+    if (field === 'id' && this.config.default_page === previousId) {
+      this.config.default_page = page.id;
+    }
+  }
+
+  addPage() {
+    const index = (this.config.pages || []).length + 1;
+    const id = `custom_${index}`;
+    this.config.pages = [...(this.config.pages || []), { id, label: `Custom ${index}`, title: `CUSTOM ${index}`, icon: 'mdi:view-dashboard-outline', type: 'custom', tiles: [] }];
+    this.selectedPageIndex = this.config.pages.length - 1;
+    this.configChanged();
+  }
+
+  removeSelectedPage() {
+    const page = this.selectedPage;
+    if (!page) {
+      return;
+    }
+
+    this.config.pages = (this.config.pages || []).filter((_, index) => index !== this.selectedPageIndex);
+    if (this.config.default_page === page.id) {
+      this.config.default_page = this.config.pages[0]?.id || 'home';
+    }
+    this.selectedPageIndex = Math.max(0, this.selectedPageIndex - 1);
+    this.ensurePageSelection();
+    this.configChanged();
+  }
+
+  moveSelectedPage(direction) {
+    const pages = [...(this.config.pages || [])];
+    const from = this.selectedPageIndex;
+    const to = direction === 'up' ? from - 1 : from + 1;
+    if (!pages[from] || !pages[to]) {
+      return;
+    }
+
+    [pages[from], pages[to]] = [pages[to], pages[from]];
+    this.config.pages = pages;
+    this.selectedPageIndex = to;
+    this.configChanged();
   }
 
   removeSelectedItem(kind = this.selectedKind) {
@@ -2284,8 +2555,10 @@ class HaNeoDashboardEditor extends HTMLElement {
       .widget-toggles, .widget-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
       .widget-editor { display: grid; gap: 10px; min-width: 0; padding: 12px; border-radius: 12px; background: rgba(44, 156, 255, .07); border: 1px solid var(--divider-color, rgba(127, 127, 127, .18)); }
       .widget-editor h4 { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; color: var(--primary-text-color); }
-      .entity-field { gap: 8px; }
-      .entity-field input { font-family: monospace; }
+      .picker-field { gap: 8px; }
+      ha-entity-picker, ha-icon-picker { min-width: 0; }
+      .nav-editor-layout { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(280px, 1.2fr); gap: 12px; }
+      .item-list button ha-icon { width: 18px; height: 18px; margin-right: 6px; vertical-align: middle; }
       .nav-preview-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
       .nav-preview-item { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; padding: 10px; border-radius: 10px; background: rgba(44, 156, 255, .08); }
       .nav-preview-item ha-icon { grid-row: span 2; width: 22px; height: 22px; color: #2c9cff; }
@@ -2314,7 +2587,7 @@ class HaNeoDashboardEditor extends HTMLElement {
       .number-field input[type="range"] { grid-column: 2; padding: 0; border: 0; accent-color: #2c9cff; }
       .number-field input[type="number"] { grid-column: 3; }
       textarea { width: 100%; min-height: 220px; box-sizing: border-box; border-radius: 10px; padding: 12px; border: 1px solid var(--divider-color, rgba(127, 127, 127, .25)); background: var(--secondary-background-color, transparent); color: var(--primary-text-color); font-family: monospace; font-size: 12px; }
-      @media (max-width: 720px) { .grid-2, .control-grid, .widget-toggles, .widget-grid { grid-template-columns: 1fr; } .floorplan-workspace { min-height: 220px; } }
+      @media (max-width: 720px) { .grid-2, .control-grid, .widget-toggles, .widget-grid, .nav-editor-layout { grid-template-columns: 1fr; } .floorplan-workspace { min-height: 220px; } }
     `;
   }
 }
