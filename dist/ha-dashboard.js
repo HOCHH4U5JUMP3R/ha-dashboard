@@ -20,8 +20,9 @@ class HaNeoDashboard extends HTMLElement {
       throw new Error('Invalid configuration');
     }
 
-    this.rawConfig = { ...config };
-    this.config = mergeConfig(config);
+    const configWithDraft = loadFloorplanDraft(config);
+    this.rawConfig = { ...configWithDraft };
+    this.config = mergeConfig(configWithDraft);
     this.currentRoom = this.currentRoom || this.config.default_room || this.config.rooms[0]?.id || 'living_room';
     this.currentPage = this.currentPage || this.config.default_page || this.config.pages[0]?.id || 'home';
   }
@@ -128,11 +129,14 @@ class HaNeoDashboard extends HTMLElement {
 
   renderHome() {
     return `
-      <section class="floorplan-wrap ${this.floorplanEditorOpen ? 'is-editing' : ''}">
-        ${this.config.apartment_floorplan_image ? `<img class="floorplan-image" src="${escapeAttr(this.config.apartment_floorplan_image)}" alt="${escapeAttr(this.config.home_title || 'Wohnungsplan')}">` : this.renderInlineFloorplan()}
-        ${(this.config.floorplan_rooms || []).map((room, index) => this.renderFloorplanRoom(room, index)).join('')}
-        ${(this.config.floorplan_entities || []).map((entity, index) => this.renderFloorplanEntity(entity, index)).join('')}
-        ${this.config.floorplan_editor === false ? '' : this.renderFloorplanEditor()}
+      <section class="floorplan-editor-shell ${this.floorplanEditorOpen ? 'is-editing' : ''}">
+        <section class="floorplan-wrap ${this.floorplanEditorOpen ? 'is-editing' : ''}">
+          ${this.config.apartment_floorplan_image ? `<img class="floorplan-image" src="${escapeAttr(this.config.apartment_floorplan_image)}" alt="${escapeAttr(this.config.home_title || 'Wohnungsplan')}">` : this.renderInlineFloorplan()}
+          ${(this.config.floorplan_rooms || []).map((room, index) => this.renderFloorplanRoom(room, index)).join('')}
+          ${(this.config.floorplan_entities || []).map((entity, index) => this.renderFloorplanEntity(entity, index)).join('')}
+          ${this.config.floorplan_editor === false ? '' : this.renderFloorplanEditorToggle()}
+        </section>
+        ${this.config.floorplan_editor === false || !this.floorplanEditorOpen ? '' : this.renderFloorplanEditorPanel()}
       </section>
     `;
   }
@@ -186,16 +190,20 @@ class HaNeoDashboard extends HTMLElement {
     `;
   }
 
-  renderFloorplanEditor() {
-    const selected = this.selectedFloorplanItem;
-    const kindLabel = this.floorplanEditorSelection?.kind === 'entities' ? 'Entity' : 'Raum';
-
+  renderFloorplanEditorToggle() {
     return `
       <button class="floorplan-edit-toggle" type="button" data-floorplan-editor-toggle="true">
         <ha-icon icon="mdi:tune-variant"></ha-icon>
         <span>${this.floorplanEditorOpen ? 'Schließen' : 'Plan anpassen'}</span>
       </button>
-      ${this.floorplanEditorOpen ? `
+    `;
+  }
+
+  renderFloorplanEditorPanel() {
+    const selected = this.selectedFloorplanItem;
+    const kindLabel = this.floorplanEditorSelection?.kind === 'entities' ? 'Entity' : 'Raum';
+
+    return `
         <aside class="floorplan-editor" aria-label="Floorplan anpassen">
           <header>
             <strong>Floorplan anpassen</strong>
@@ -234,8 +242,8 @@ class HaNeoDashboard extends HTMLElement {
           ` : `<p class="floorplan-editor-empty">Wähle einen Raum oder eine Entität aus.</p>`}
           ${selected ? '<button class="floorplan-editor-delete" type="button" data-floorplan-delete="true">Ausgewählten Eintrag entfernen</button>' : ''}
           <button class="floorplan-editor-copy" type="button" data-floorplan-copy="true">${this.floorplanEditorCopied ? 'YAML kopiert' : 'YAML kopieren'}</button>
+          <p class="floorplan-editor-save-note">Entwurf wird lokal gemerkt. Zum dauerhaften Speichern die Karte bearbeiten und im HA-Editor speichern; bei YAML-Dashboards den YAML-Block kopieren.</p>
         </aside>
-      ` : ''}
     `;
   }
 
@@ -1027,6 +1035,7 @@ class HaNeoDashboard extends HTMLElement {
     };
 
     this.rawConfig = nextConfig;
+    saveFloorplanDraft(nextConfig);
     this.dispatchEvent(new CustomEvent('config-changed', {
       bubbles: true,
       composed: true,
@@ -1289,6 +1298,8 @@ class HaNeoDashboard extends HTMLElement {
       .quick-chips { display: flex; gap: 10px; justify-content: center; margin-top: 42px; padding: 24px 60px; background: radial-gradient(circle at center, rgba(123, 145, 255, .32), transparent 58%); }
       .chip { display: inline-flex; gap: 7px; align-items: center; border-radius: 999px; padding: 7px 12px; background: rgba(22, 27, 68, .76); color: var(--neo-text); }
       .chip ha-icon { width: 18px; color: var(--neo-blue); }
+      .floorplan-editor-shell { width: min(1180px, 100%); display: grid; justify-items: center; gap: 14px; }
+      .floorplan-editor-shell.is-editing { grid-template-columns: minmax(0, 1fr) minmax(280px, 330px); align-items: start; justify-items: stretch; }
       .floorplan-wrap { position: relative; width: min(940px, 100%); aspect-ratio: 1000 / 620; border-radius: 26px; background: radial-gradient(circle at 50% 50%, rgba(86, 116, 255, .12), rgba(12, 15, 36, .34)); filter: drop-shadow(0 34px 44px rgba(95, 125, 255, .20)); overflow: hidden; }
       .floorplan-image, .floorplan-svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
       .floorplan-svg { color: rgba(255, 255, 255, .9); }
@@ -1308,9 +1319,9 @@ class HaNeoDashboard extends HTMLElement {
       .floorplan-room-hotspot.editor-selected, .floorplan-entity.editor-selected { outline: 2px solid var(--neo-orange); outline-offset: 3px; color: var(--neo-text); border-color: var(--neo-orange); z-index: 5; }
       .floorplan-edit-toggle { position: absolute; right: 16px; top: 16px; z-index: 20; display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px; border-radius: 999px; background: rgba(255, 255, 255, .94); color: #111530; font-size: 12px; font-weight: 900; box-shadow: 0 12px 24px rgba(0, 0, 0, .24); }
       .floorplan-edit-toggle ha-icon { width: 18px; height: 18px; }
-      .floorplan-editor { position: absolute; right: 16px; top: 62px; bottom: 16px; z-index: 19; width: min(330px, calc(100% - 32px)); display: grid; grid-template-rows: auto auto minmax(0, auto) auto auto; gap: 12px; overflow: hidden auto; padding: 14px; border-radius: 18px; background: rgba(13, 17, 43, .92); border: 1px solid rgba(169, 181, 232, .34); color: var(--neo-text); box-shadow: 0 20px 40px rgba(0, 0, 0, .36); backdrop-filter: blur(14px); }
+      .floorplan-editor { z-index: 19; width: 100%; max-height: min(620px, calc(100dvh - 170px)); display: grid; grid-template-rows: auto auto minmax(0, auto) auto auto auto; gap: 12px; overflow: hidden auto; padding: 14px; border-radius: 18px; background: rgba(13, 17, 43, .92); border: 1px solid rgba(169, 181, 232, .34); color: var(--neo-text); box-shadow: 0 20px 40px rgba(0, 0, 0, .36); backdrop-filter: blur(14px); }
       .floorplan-editor header strong { display: block; font-size: 15px; }
-      .floorplan-editor header small, .floorplan-editor-empty { color: var(--neo-muted); font-size: 11px; }
+      .floorplan-editor header small, .floorplan-editor-empty, .floorplan-editor-save-note { color: var(--neo-muted); font-size: 11px; }
       .floorplan-editor-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
       .floorplan-editor-lists section { min-width: 0; display: grid; gap: 7px; }
       .floorplan-editor-lists section > strong { font-size: 11px; color: var(--neo-muted); }
@@ -1449,6 +1460,7 @@ class HaNeoDashboard extends HTMLElement {
         .presence-strip { grid-area: presence; }
         .top-title { grid-area: title; justify-self: stretch; min-width: 0; }
         .top-actions { grid-area: action; }
+        .floorplan-editor-shell.is-editing { grid-template-columns: 1fr; }
         .floorplan-wrap { width: 100%; }
         .page-grid, .rooms-grid, .page-grid-wide, .full-page-grid, .server-layout, .custom-card-grid, .server-custom-card-grid { grid-template-columns: 1fr; }
         .span-2, .span-3, .span-4 { grid-column: auto; }
@@ -1466,6 +1478,10 @@ class HaNeoDashboardEditor extends HTMLElement {
     this.selectedKind = this.selectedKind || 'rooms';
     this.selectedIndex = this.selectedIndex || 0;
     this.render();
+    if (this.loadedFloorplanDraft && !this.floorplanDraftAnnounced) {
+      this.floorplanDraftAnnounced = true;
+      queueMicrotask(() => this.configChanged({ render: false }));
+    }
   }
 
   set hass(hass) {
@@ -1488,13 +1504,15 @@ class HaNeoDashboardEditor extends HTMLElement {
   }
 
   normalizeConfig(config) {
+    this.loadedFloorplanDraft = hasFloorplanDraft(config);
+    const configWithDraft = loadFloorplanDraft(config);
     return {
-      ...config,
-      default_page: config.default_page || 'home',
-      floorplan_editor: config.floorplan_editor ?? true,
-      apartment_floorplan_image: config.apartment_floorplan_image ?? DEFAULT_CONFIG.apartment_floorplan_image,
-      floorplan_rooms: cloneList(config.floorplan_rooms || DEFAULT_CONFIG.floorplan_rooms),
-      floorplan_entities: cloneList(config.floorplan_entities || DEFAULT_CONFIG.floorplan_entities),
+      ...configWithDraft,
+      default_page: configWithDraft.default_page || 'home',
+      floorplan_editor: configWithDraft.floorplan_editor ?? true,
+      apartment_floorplan_image: configWithDraft.apartment_floorplan_image ?? DEFAULT_CONFIG.apartment_floorplan_image,
+      floorplan_rooms: cloneList(configWithDraft.floorplan_rooms || DEFAULT_CONFIG.floorplan_rooms),
+      floorplan_entities: cloneList(configWithDraft.floorplan_entities || DEFAULT_CONFIG.floorplan_entities),
     };
   }
 
@@ -1805,6 +1823,7 @@ class HaNeoDashboardEditor extends HTMLElement {
 
   configChanged({ render = true } = {}) {
     const config = { ...this.config };
+    saveFloorplanDraft(config);
     this.dispatchEvent(new CustomEvent('config-changed', { bubbles: true, composed: true, detail: { config } }));
     if (render) {
       this.render();
@@ -2367,6 +2386,54 @@ function editorInlineFloorplan() {
       <text x="660" y="455">Schlafzimmer</text>
     </svg>
   `;
+}
+
+
+const FLOORPLAN_DRAFT_FIELDS = ['apartment_floorplan_image', 'floorplan_rooms', 'floorplan_entities', 'floorplan_editor'];
+
+function floorplanDraftKey(config = {}) {
+  const explicitKey = config.floorplan_storage_key || config.storage_key;
+  const fallbackKey = [config.type || 'ha-neo-dashboard', config.title || config.home_title || '', config.default_room || ''].join('|');
+  return `ha-neo-dashboard:floorplan:${explicitKey || fallbackKey}`;
+}
+
+function pickFloorplanDraft(config = {}) {
+  return FLOORPLAN_DRAFT_FIELDS.reduce((draft, field) => {
+    if (config[field] !== undefined) {
+      draft[field] = Array.isArray(config[field]) ? cloneList(config[field]) : config[field];
+    }
+    return draft;
+  }, {});
+}
+
+function hasFloorplanDraft(config = {}) {
+  try {
+    return Boolean(window.localStorage?.getItem(floorplanDraftKey(config)));
+  } catch (_error) {
+    return false;
+  }
+}
+
+function loadFloorplanDraft(config = {}) {
+  try {
+    const rawDraft = window.localStorage?.getItem(floorplanDraftKey(config));
+    if (!rawDraft) {
+      return config;
+    }
+
+    const draft = JSON.parse(rawDraft);
+    return { ...config, ...pickFloorplanDraft(draft) };
+  } catch (_error) {
+    return config;
+  }
+}
+
+function saveFloorplanDraft(config = {}) {
+  try {
+    window.localStorage?.setItem(floorplanDraftKey(config), JSON.stringify(pickFloorplanDraft(config)));
+  } catch (_error) {
+    // Ignore browsers that block localStorage; Home Assistant editor events still receive the config.
+  }
 }
 
 function cloneList(items) {
