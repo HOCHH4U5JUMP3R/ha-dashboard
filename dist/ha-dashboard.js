@@ -2240,6 +2240,10 @@ class HaNeoDashboardEditor extends HTMLElement {
   };
 
   handleInput = (event) => {
+    if (event.haNeoHandled) {
+      return;
+    }
+
     const target = event.composedPath().find((node) => node?.dataset?.configField || node?.dataset?.itemField || node?.dataset?.weatherField || node?.dataset?.calendarField || node?.dataset?.widgetToggle || node?.dataset?.pageField || node?.dataset?.pageToggle || node?.dataset?.pageDefault);
     if (!target) {
       return;
@@ -2253,7 +2257,7 @@ class HaNeoDashboardEditor extends HTMLElement {
 
     if (target.dataset.configField) {
       const field = target.dataset.configField;
-      const value = event.type === 'value-changed' ? event.detail?.value : target.value;
+      const value = controlEventValue(event, target);
       this.config[field] = target.type === 'checkbox' ? target.checked : value;
       this.syncWidgetActions(field);
       this.syncEntityControls(field, this.config[field], target);
@@ -2268,7 +2272,7 @@ class HaNeoDashboardEditor extends HTMLElement {
       const isWeather = Boolean(target.dataset.weatherField);
       const groupKey = isWeather ? 'home_weather' : 'home_calendar';
       const field = (isWeather ? target.dataset.weatherField : target.dataset.calendarField).replace(/^weather_|^calendar_/, '');
-      const rawValue = event.type === 'value-changed' ? event.detail?.value : target.value;
+      const rawValue = controlEventValue(event, target);
       const numericFields = ['forecast_count'];
       this.config[groupKey] = { ...(this.config[groupKey] || {}), [field]: numericFields.includes(field) ? (rawValue === '' ? '' : Number(rawValue)) : rawValue };
       this.syncEditorControls(isWeather ? `weather_${field}` : `calendar_${field}`, rawValue, target);
@@ -2288,7 +2292,7 @@ class HaNeoDashboardEditor extends HTMLElement {
     }
 
     const field = target.dataset.itemField;
-    const rawValue = event.type === 'value-changed' ? event.detail?.value : target.value;
+    const rawValue = controlEventValue(event, target);
     const numericFields = ['x', 'y', 'width', 'height'];
     item[field] = numericFields.includes(field) ? (rawValue === '' ? '' : Number(rawValue)) : rawValue;
     this.updateWorkspaceItemStyle();
@@ -2426,9 +2430,16 @@ class HaNeoDashboardEditor extends HTMLElement {
 
     this.shadowRoot.querySelectorAll('ha-selector[data-entity-selector]').forEach((selector) => {
       selector.hass = this._hass;
-      selector.value = this.controlValueForPicker(selector) || '';
       selector.selector = { entity: selector.dataset.entityDomain ? { domain: selector.dataset.entityDomain } : {} };
+      selector.value = this.controlValueForPicker(selector) || '';
       selector.label = '';
+      if (!selector.haNeoValueListenerAttached) {
+        selector.addEventListener('value-changed', (event) => {
+          this.handleInput(event);
+          event.haNeoHandled = true;
+        });
+        selector.haNeoValueListenerAttached = true;
+      }
     });
 
     this.shadowRoot.querySelectorAll('ha-entity-picker').forEach((picker) => {
@@ -3415,6 +3426,19 @@ function formatDateRange(start, end) {
     return `${formatGermanDate(date)} ${date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
   };
   return [format(start), format(end)].filter(Boolean).join(' – ');
+}
+
+
+function controlEventValue(event, target) {
+  const detailValue = event?.detail?.value;
+  const value = detailValue === undefined ? target?.value : detailValue;
+  if (Array.isArray(value)) {
+    return value[0] || '';
+  }
+  if (value && typeof value === 'object') {
+    return value.entity_id || value.entity || value.value || value.id || '';
+  }
+  return value ?? '';
 }
 
 function parseAktion(value) {
