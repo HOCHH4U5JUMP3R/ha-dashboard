@@ -2042,28 +2042,15 @@ class HaNeoDashboardEditor extends HTMLElement {
   entityControl(field, label, value, domain, group = 'config') {
     const dataAttribute = group === 'item' ? 'data-item-field' : 'data-config-field';
     const domainAttribute = domain ? `data-entity-domain="${escapeAttr(domain)}"` : '';
-    const placeholder = domain ? `${domain}.deine_entity` : 'domain.entity_id';
-    const fallbackInput = group === 'item' ? '' : `
-          <input
-            class="entity-picker-fallback"
-            type="text"
-            value="${escapeAttr(value)}"
-            placeholder="${escapeAttr(placeholder)}"
-            autocomplete="off"
-            ${dataAttribute}="${escapeAttr(field)}"
-            ${domainAttribute}
-          >`;
     return `
       <label class="field picker-field">
         <span>${escapeHtml(label)}</span>
-        <div class="entity-picker-stack">
-          <ha-selector
-            class="ha-entity-selector"
-            data-entity-selector="true"
-            ${dataAttribute}="${escapeAttr(field)}"
-            ${domainAttribute}
-          ></ha-selector>${fallbackInput}
-        </div>
+        <ha-selector
+          class="ha-entity-selector"
+          data-entity-selector="true"
+          ${dataAttribute}="${escapeAttr(field)}"
+          ${domainAttribute}
+        ></ha-selector>
       </label>
     `;
   }
@@ -2430,23 +2417,22 @@ class HaNeoDashboardEditor extends HTMLElement {
 
     this.shadowRoot.querySelectorAll('ha-selector[data-entity-selector]').forEach((selector) => {
       selector.hass = this._hass;
-      selector.selector = { entity: { custom_value: true, ...(selector.dataset.entityDomain ? { domain: selector.dataset.entityDomain } : {}) } };
+      selector.selector = {
+        entity: {
+          custom_value: true,
+          ...(selector.dataset.entityDomain ? { domain: selector.dataset.entityDomain } : {}),
+        },
+      };
       selector.value = this.controlValueForPicker(selector) || '';
       selector.label = '';
       if (!selector.haNeoValueListenerAttached) {
-        selector.addEventListener('value-changed', (event) => {
+        const onSelectorValue = (event) => {
           this.handleInput(event);
           event.haNeoHandled = true;
-        });
+        };
+        selector.addEventListener('value-changed', onSelectorValue);
+        selector.addEventListener('change', onSelectorValue);
         selector.haNeoValueListenerAttached = true;
-      }
-    });
-
-    this.shadowRoot.querySelectorAll('ha-entity-picker').forEach((picker) => {
-      picker.hass = this._hass;
-      picker.value = this.controlValueForPicker(picker) || '';
-      if (picker.dataset.entityDomain) {
-        picker.includeDomains = [picker.dataset.entityDomain];
       }
     });
 
@@ -2666,9 +2652,7 @@ class HaNeoDashboardEditor extends HTMLElement {
       .widget-editor { display: grid; gap: 10px; min-width: 0; padding: 12px; border-radius: 12px; background: rgba(44, 156, 255, .07); border: 1px solid var(--divider-color, rgba(127, 127, 127, .18)); }
       .widget-editor h4 { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; color: var(--primary-text-color); }
       .picker-field { gap: 8px; }
-      .entity-picker-stack { display: grid; gap: 6px; min-width: 0; }
-      ha-selector, ha-entity-picker, ha-icon-picker { min-width: 0; }
-      .entity-picker-fallback { width: 100%; }
+      ha-selector, ha-icon-picker { min-width: 0; }
       .nav-editor-layout { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(280px, 1.2fr); gap: 12px; }
       .item-list button ha-icon { width: 18px; height: 18px; margin-right: 6px; vertical-align: middle; }
       .nav-preview-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
@@ -3431,12 +3415,25 @@ function formatDateRange(start, end) {
 
 function controlEventValue(event, target) {
   const detailValue = event?.detail?.value;
-  const value = detailValue === undefined ? target?.value : detailValue;
+  const primaryValue = detailValue === undefined ? undefined : selectorValue(detailValue);
+  if (primaryValue) {
+    return primaryValue;
+  }
+
+  const targetValue = selectorValue(target?.value);
+  if (targetValue || detailValue === undefined) {
+    return targetValue;
+  }
+
+  return '';
+}
+
+function selectorValue(value) {
   if (Array.isArray(value)) {
-    return value[0] || '';
+    return selectorValue(value[0]);
   }
   if (value && typeof value === 'object') {
-    return value.entity_id || value.entity || value.value || value.id || '';
+    return selectorValue(value.entity_id ?? value.entity ?? value.value ?? value.id ?? value.target?.entity_id);
   }
   return value ?? '';
 }
