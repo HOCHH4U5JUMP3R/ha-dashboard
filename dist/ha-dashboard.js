@@ -2045,12 +2045,12 @@ class HaNeoDashboardEditor extends HTMLElement {
     return `
       <label class="field picker-field">
         <span>${escapeHtml(label)}</span>
-        <ha-entity-picker
-          data-entity-picker="true"
+        <ha-selector
+          class="ha-entity-selector"
+          data-entity-selector="true"
           ${dataAttribute}="${escapeAttr(field)}"
           ${domainAttribute}
-          allow-custom-entity
-        ></ha-entity-picker>
+        ></ha-selector>
       </label>
     `;
   }
@@ -2415,19 +2415,24 @@ class HaNeoDashboardEditor extends HTMLElement {
       return;
     }
 
-    this.shadowRoot.querySelectorAll('ha-entity-picker[data-entity-picker]').forEach((picker) => {
-      picker.hass = this._hass;
-      picker.value = this.controlValueForPicker(picker) || '';
-      picker.allowCustomEntity = true;
-      picker.includeDomains = picker.dataset.entityDomain ? [picker.dataset.entityDomain] : undefined;
-      if (!picker.haNeoValueListenerAttached) {
-        const onPickerValue = (event) => {
+    this.shadowRoot.querySelectorAll('ha-selector[data-entity-selector]').forEach((selector) => {
+      selector.hass = this._hass;
+      selector.selector = {
+        entity: {
+          custom_value: true,
+          ...(selector.dataset.entityDomain ? { domain: selector.dataset.entityDomain } : {}),
+        },
+      };
+      selector.value = this.controlValueForPicker(selector) || '';
+      selector.label = '';
+      if (!selector.haNeoValueListenerAttached) {
+        const onSelectorValue = (event) => {
           this.handleInput(event);
           event.haNeoHandled = true;
         };
-        picker.addEventListener('value-changed', onPickerValue);
-        picker.addEventListener('change', onPickerValue);
-        picker.haNeoValueListenerAttached = true;
+        selector.addEventListener('value-changed', onSelectorValue);
+        selector.addEventListener('change', onSelectorValue);
+        selector.haNeoValueListenerAttached = true;
       }
     });
 
@@ -2647,7 +2652,7 @@ class HaNeoDashboardEditor extends HTMLElement {
       .widget-editor { display: grid; gap: 10px; min-width: 0; padding: 12px; border-radius: 12px; background: rgba(44, 156, 255, .07); border: 1px solid var(--divider-color, rgba(127, 127, 127, .18)); }
       .widget-editor h4 { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; color: var(--primary-text-color); }
       .picker-field { gap: 8px; }
-      ha-entity-picker, ha-icon-picker { min-width: 0; }
+      ha-selector, ha-icon-picker { min-width: 0; }
       .nav-editor-layout { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(280px, 1.2fr); gap: 12px; }
       .item-list button ha-icon { width: 18px; height: 18px; margin-right: 6px; vertical-align: middle; }
       .nav-preview-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
