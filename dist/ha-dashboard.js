@@ -2043,6 +2043,16 @@ class HaNeoDashboardEditor extends HTMLElement {
     const dataAttribute = group === 'item' ? 'data-item-field' : 'data-config-field';
     const domainAttribute = domain ? `data-entity-domain="${escapeAttr(domain)}"` : '';
     const placeholder = domain ? `${domain}.deine_entity` : 'domain.entity_id';
+    const fallbackInput = group === 'item' ? '' : `
+          <input
+            class="entity-picker-fallback"
+            type="text"
+            value="${escapeAttr(value)}"
+            placeholder="${escapeAttr(placeholder)}"
+            autocomplete="off"
+            ${dataAttribute}="${escapeAttr(field)}"
+            ${domainAttribute}
+          >`;
     return `
       <label class="field picker-field">
         <span>${escapeHtml(label)}</span>
@@ -2052,16 +2062,7 @@ class HaNeoDashboardEditor extends HTMLElement {
             data-entity-selector="true"
             ${dataAttribute}="${escapeAttr(field)}"
             ${domainAttribute}
-          ></ha-selector>
-          <input
-            class="entity-picker-fallback"
-            type="text"
-            value="${escapeAttr(value)}"
-            placeholder="${escapeAttr(placeholder)}"
-            autocomplete="off"
-            ${dataAttribute}="${escapeAttr(field)}"
-            ${domainAttribute}
-          >
+          ></ha-selector>${fallbackInput}
         </div>
       </label>
     `;
@@ -2292,7 +2293,10 @@ class HaNeoDashboardEditor extends HTMLElement {
     item[field] = numericFields.includes(field) ? (rawValue === '' ? '' : Number(rawValue)) : rawValue;
     this.updateWorkspaceItemStyle();
     this.syncEditorControls(field, rawValue, target);
-    this.configChanged({ render: event.type === 'change', dispatch: event.type === 'change' });
+    this.configChanged({
+      render: event.type === 'change' || event.type === 'value-changed',
+      dispatch: event.type === 'change' || event.type === 'value-changed',
+    });
   };
 
   handleWorkspacePointerDown = (event) => {
