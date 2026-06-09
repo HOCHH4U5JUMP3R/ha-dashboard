@@ -30,6 +30,7 @@ class HaNeoDashboard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     this.render();
+    this.requestWeatherForecast();
   }
 
   getCardSize() {
@@ -298,11 +299,7 @@ class HaNeoDashboard extends HTMLElement {
 
     const isHomeLike = page?.type === 'home' || page?.type === 'rooms';
     const cfg = isHomeLike
-      ? {
-        top_tabs: this.config.home_top_tabs || this.config.room_overview_top_tabs || [],
-        systems: this.config.home_systems || this.config.room_overview_systems || [],
-        metrics: this.config.home_metrics || this.config.room_overview_metrics || [],
-      }
+      ? { top_tabs: [], systems: [], metrics: [] }
       : this.activeConfig;
 
     return `
@@ -324,13 +321,42 @@ class HaNeoDashboard extends HTMLElement {
   }
 
   renderHomeSidebarWidgets(widgetConfig) {
-    const widgets = widgetConfig || ['weather', 'calendar'];
+    const widgets = normalizeSidebarWidgets(widgetConfig || ['weather', 'calendar']);
     return `
       <div class="home-sidebar-widgets">
-        ${widgets.includes('weather') ? this.renderWeatherWidget(this.config.home_weather || {}) : ''}
-        ${widgets.includes('calendar') ? this.renderCalendarWidget(this.config.home_calendar || {}) : ''}
+        ${widgets.map((widget) => widget === 'weather' ? this.renderWeatherWidget(this.config.home_weather || {}) : this.renderCalendarWidget(this.config.home_calendar || {})).join('')}
       </div>
     `;
+  }
+
+  requestWeatherForecast(entityId = this.config?.home_weather?.entity || this.config?.weather_entity) {
+    if (!this._hass?.callWS || !entityId || !entityId.startsWith('weather.')) {
+      return;
+    }
+
+    this.weatherForecasts = this.weatherForecasts || {};
+    const cached = this.weatherForecasts[entityId];
+    if (cached?.loading || (cached?.updated && Date.now() - cached.updated < 15 * 60 * 1000)) {
+      return;
+    }
+
+    this.weatherForecasts[entityId] = { ...(cached || {}), loading: true };
+    this._hass.callWS({
+      type: 'execute_script',
+      sequence: [{
+        service: 'weather.get_forecasts',
+        target: { entity_id: entityId },
+        data: { type: 'daily' },
+        response_variable: 'daily_forecast',
+      }],
+      response_variable: 'daily_forecast',
+    }).then((response) => {
+      const forecast = response?.[entityId]?.forecast || response?.daily_forecast?.[entityId]?.forecast || [];
+      this.weatherForecasts[entityId] = { forecast, updated: Date.now(), loading: false };
+      this.render();
+    }).catch(() => {
+      this.weatherForecasts[entityId] = { forecast: [], updated: Date.now(), loading: false };
+    });
   }
 
   renderWeatherWidget(options) {
@@ -340,7 +366,9 @@ class HaNeoDashboard extends HTMLElement {
     const temperature = attributes.temperature ?? attributes.apparent_temperature;
     const unit = attributes.temperature_unit || this._hass.config?.unit_system?.temperature || '°C';
     const condition = options.label || (state ? weatherConditionLabel(state.state) : 'Wetter');
-    const forecast = (options.forecast || attributes.forecast || []).slice(0, Number(options.forecast_count ?? 4));
+    const forecastSource = options.forecast || attributes.forecast || this.weatherForecasts?.[entityId]?.forecast || [];
+    const forecast = forecastSource.slice(0, Number(options.forecast_count ?? 4));
+    this.requestWeatherForecast(entityId);
 
     return `
       <button class="sidebar-widget weather-widget" type="button" data-action='${jsonAttr(options.tap_action || { action: 'more-info', entity: entityId })}'>
@@ -1601,8 +1629,8 @@ class HaNeoDashboardEditor extends HTMLElement {
       apartment_floorplan_image: configWithDraft.apartment_floorplan_image ?? DEFAULT_CONFIG.apartment_floorplan_image,
       weather_entity: configWithDraft.weather_entity || configWithDraft.home_weather?.entity || DEFAULT_CONFIG.weather_entity,
       calendar_entity: configWithDraft.calendar_entity || configWithDraft.home_calendar?.entity || DEFAULT_CONFIG.calendar_entity,
-      left_sidebar_widgets: configWithDraft.left_sidebar_widgets === false ? [] : Array.isArray(configWithDraft.left_sidebar_widgets) ? [...configWithDraft.left_sidebar_widgets] : [...(DEFAULT_CONFIG.left_sidebar_widgets || [])],
-      home_sidebar_widgets: configWithDraft.home_sidebar_widgets === false ? [] : Array.isArray(configWithDraft.home_sidebar_widgets) ? [...configWithDraft.home_sidebar_widgets] : [...(DEFAULT_CONFIG.home_sidebar_widgets || [])],
+      left_sidebar_widgets: configWithDraft.left_sidebar_widgets === false ? [] : normalizeSidebarWidgets(Array.isArray(configWithDraft.left_sidebar_widgets) ? configWithDraft.left_sidebar_widgets : (DEFAULT_CONFIG.left_sidebar_widgets || [])),
+      home_sidebar_widgets: configWithDraft.home_sidebar_widgets === false ? [] : normalizeSidebarWidgets(Array.isArray(configWithDraft.home_sidebar_widgets) ? configWithDraft.home_sidebar_widgets : (DEFAULT_CONFIG.home_sidebar_widgets || [])),
       home_weather: { ...DEFAULT_CONFIG.home_weather, ...(configWithDraft.home_weather || {}) },
       home_calendar: { ...DEFAULT_CONFIG.home_calendar, ...(configWithDraft.home_calendar || {}) },
       pages: cloneList(configWithDraft.pages || DEFAULT_CONFIG.pages),
@@ -1795,6 +1823,13 @@ class HaNeoDashboardEditor extends HTMLElement {
           ${this.widgetToggle('weather', 'Wetter-Kachel anzeigen', widgets.includes('weather'))}
           ${this.widgetToggle('calendar', 'Kalender-Kachel anzeigen', widgets.includes('calendar'))}
         </div>
+        <div class="widget-order">
+          <span>Reihenfolge</span>
+          ${normalizeSidebarWidgets(widgets).map((widget, index) => `
+            <button class="secondary" type="button" data-move-sidebar-widget="${escapeAttr(widget)}" data-move-sidebar-direction="up" ${index === 0 ? 'disabled' : ''}>${widget === 'weather' ? 'Wetter' : 'Kalender'} nach oben</button>
+            <button class="secondary" type="button" data-move-sidebar-widget="${escapeAttr(widget)}" data-move-sidebar-direction="down" ${index === normalizeSidebarWidgets(widgets).length - 1 ? 'disabled' : ''}>${widget === 'weather' ? 'Wetter' : 'Kalender'} nach unten</button>
+          `).join('')}
+        </div>
         <div class="widget-grid">
           <section class="widget-editor">
             <h4><ha-icon icon="mdi:weather-partly-cloudy"></ha-icon> Wetter</h4>
@@ -1882,6 +1917,13 @@ class HaNeoDashboardEditor extends HTMLElement {
           ${this.widgetToggle('weather', 'Wetter-Kachel anzeigen', widgets.includes('weather'))}
           ${this.widgetToggle('calendar', 'Kalender-Kachel anzeigen', widgets.includes('calendar'))}
         </div>
+        <div class="widget-order">
+          <span>Reihenfolge</span>
+          ${normalizeSidebarWidgets(widgets).map((widget, index) => `
+            <button class="secondary" type="button" data-move-sidebar-widget="${escapeAttr(widget)}" data-move-sidebar-direction="up" ${index === 0 ? 'disabled' : ''}>${widget === 'weather' ? 'Wetter' : 'Kalender'} nach oben</button>
+            <button class="secondary" type="button" data-move-sidebar-widget="${escapeAttr(widget)}" data-move-sidebar-direction="down" ${index === normalizeSidebarWidgets(widgets).length - 1 ? 'disabled' : ''}>${widget === 'weather' ? 'Wetter' : 'Kalender'} nach unten</button>
+          `).join('')}
+        </div>
         <div class="widget-grid">
           <section class="widget-editor">
             <h4><ha-icon icon="mdi:weather-partly-cloudy"></ha-icon> Wetter</h4>
@@ -1959,6 +2001,13 @@ class HaNeoDashboardEditor extends HTMLElement {
           ${this.widgetToggle('weather', 'Wetter-Kachel anzeigen', widgets.includes('weather'))}
           ${this.widgetToggle('calendar', 'Kalender-Kachel anzeigen', widgets.includes('calendar'))}
         </div>
+        <div class="widget-order">
+          <span>Reihenfolge</span>
+          ${normalizeSidebarWidgets(widgets).map((widget, index) => `
+            <button class="secondary" type="button" data-move-sidebar-widget="${escapeAttr(widget)}" data-move-sidebar-direction="up" ${index === 0 ? 'disabled' : ''}>${widget === 'weather' ? 'Wetter' : 'Kalender'} nach oben</button>
+            <button class="secondary" type="button" data-move-sidebar-widget="${escapeAttr(widget)}" data-move-sidebar-direction="down" ${index === normalizeSidebarWidgets(widgets).length - 1 ? 'disabled' : ''}>${widget === 'weather' ? 'Wetter' : 'Kalender'} nach unten</button>
+          `).join('')}
+        </div>
         <div class="widget-grid">
           <section class="widget-editor">
             <h4><ha-icon icon="mdi:weather-partly-cloudy"></ha-icon> Wetter</h4>
@@ -1992,13 +2041,14 @@ class HaNeoDashboardEditor extends HTMLElement {
 
   entityControl(field, label, value, domain, group = 'config') {
     const dataAttribute = group === 'item' ? 'data-item-field' : 'data-config-field';
+    const domainAttribute = domain ? `data-entity-domain="${escapeAttr(domain)}"` : '';
     return `
       <label class="field picker-field">
         <span>${escapeHtml(label)}</span>
         <ha-entity-picker
           allow-custom-entity
           ${dataAttribute}="${escapeAttr(field)}"
-          data-entity-domain="${escapeAttr(domain)}"
+          ${domainAttribute}
           value="${escapeAttr(value)}"
         ></ha-entity-picker>
       </label>
@@ -2122,7 +2172,7 @@ class HaNeoDashboardEditor extends HTMLElement {
       return;
     }
 
-    const target = event.composedPath().find((node) => node?.dataset?.editorTab || node?.dataset?.selectKind || node?.dataset?.addKind || node?.dataset?.removeKind || node?.dataset?.pageSelectIndex || node?.dataset?.addPage || node?.dataset?.removePage || node?.dataset?.movePage);
+    const target = event.composedPath().find((node) => node?.dataset?.editorTab || node?.dataset?.selectKind || node?.dataset?.addKind || node?.dataset?.removeKind || node?.dataset?.moveSidebarWidget || node?.dataset?.pageSelectIndex || node?.dataset?.addPage || node?.dataset?.removePage || node?.dataset?.movePage);
     if (!target) {
       return;
     }
@@ -2151,6 +2201,11 @@ class HaNeoDashboardEditor extends HTMLElement {
 
     if (target.dataset.movePage) {
       this.moveSelectedPage(target.dataset.movePage);
+      return;
+    }
+
+    if (target.dataset.moveSidebarWidget) {
+      this.moveSidebarWidget(target.dataset.moveSidebarWidget, target.dataset.moveSidebarDirection);
       return;
     }
 
@@ -2292,14 +2347,33 @@ class HaNeoDashboardEditor extends HTMLElement {
     window.addEventListener('pointerup', onUp, { once: true });
   };
 
+  moveSidebarWidget(widget, direction) {
+    const widgets = normalizeSidebarWidgets(this.config.left_sidebar_widgets);
+    const from = widgets.indexOf(widget);
+    const to = direction === 'up' ? from - 1 : from + 1;
+    if (from < 0 || to < 0 || to >= widgets.length) {
+      return;
+    }
+
+    [widgets[from], widgets[to]] = [widgets[to], widgets[from]];
+    this.config.left_sidebar_widgets = widgets;
+    this.config.home_sidebar_widgets = widgets;
+    this.configChanged({ render: true, dispatch: true });
+  }
+
   toggleSidebarWidget(widget, checked) {
-    const widgets = new Set(Array.isArray(this.config.left_sidebar_widgets) ? this.config.left_sidebar_widgets : []);
+    const widgets = new Set(normalizeSidebarWidgets(this.config.left_sidebar_widgets));
     if (checked) {
       widgets.add(widget);
     } else {
       widgets.delete(widget);
     }
-    this.config.left_sidebar_widgets = ['weather', 'calendar'].filter((entry) => widgets.has(entry));
+    const orderedWidgets = normalizeSidebarWidgets(this.config.left_sidebar_widgets).filter((entry) => widgets.has(entry));
+    if (checked && !orderedWidgets.includes(widget)) {
+      orderedWidgets.push(widget);
+    }
+    this.config.left_sidebar_widgets = orderedWidgets;
+    this.config.home_sidebar_widgets = orderedWidgets;
   }
 
   syncEntityControls(field, value, source) {
@@ -2553,6 +2627,8 @@ class HaNeoDashboardEditor extends HTMLElement {
       .toggle { grid-template-columns: auto 1fr; align-items: center; font-weight: 500; }
       .toggle input { width: 18px; height: 18px; padding: 0; }
       .widget-toggles, .widget-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .widget-order { display: grid; grid-template-columns: auto repeat(4, minmax(0, 1fr)); gap: 8px; align-items: center; }
+      .widget-order span { color: var(--secondary-text-color); font-size: 12px; font-weight: 800; }
       .widget-editor { display: grid; gap: 10px; min-width: 0; padding: 12px; border-radius: 12px; background: rgba(44, 156, 255, .07); border: 1px solid var(--divider-color, rgba(127, 127, 127, .18)); }
       .widget-editor h4 { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; color: var(--primary-text-color); }
       .picker-field { gap: 8px; }
@@ -2581,13 +2657,14 @@ class HaNeoDashboardEditor extends HTMLElement {
       .item-list button.active { background: rgba(44, 156, 255, .34); }
       .secondary { text-align: center; background: rgba(242, 154, 55, .22); }
       .secondary.danger { background: rgba(242, 84, 84, .22); }
+      .secondary:disabled { opacity: .45; cursor: not-allowed; }
       .control-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
       .number-field { grid-template-columns: 56px 1fr 72px; align-items: center; }
       .number-field span { grid-column: 1; }
       .number-field input[type="range"] { grid-column: 2; padding: 0; border: 0; accent-color: #2c9cff; }
       .number-field input[type="number"] { grid-column: 3; }
       textarea { width: 100%; min-height: 220px; box-sizing: border-box; border-radius: 10px; padding: 12px; border: 1px solid var(--divider-color, rgba(127, 127, 127, .25)); background: var(--secondary-background-color, transparent); color: var(--primary-text-color); font-family: monospace; font-size: 12px; }
-      @media (max-width: 720px) { .grid-2, .control-grid, .widget-toggles, .widget-grid, .nav-editor-layout { grid-template-columns: 1fr; } .floorplan-workspace { min-height: 220px; } }
+      @media (max-width: 720px) { .grid-2, .control-grid, .widget-toggles, .widget-grid, .widget-order, .nav-editor-layout { grid-template-columns: 1fr; } .floorplan-workspace { min-height: 220px; } }
     `;
   }
 }
@@ -2764,16 +2841,8 @@ const DEFAULT_CONFIG = {
     { label: 'SYSTEM', tap_action: { action: 'none' } },
     { label: 'WARTUNG', tap_action: { action: 'navigate', navigation_path: '/lovelace/maintenance' } },
   ],
-  room_overview_top_tabs: [
-    { label: 'KALENDER', tap_action: { action: 'more-info', entity: 'calendar.home' } },
-    { label: 'TODO', tap_action: { action: 'more-info', entity: 'todo.home' } },
-    { label: 'WETTER', tap_action: { action: 'more-info', entity: 'weather.home' } },
-  ],
-  room_overview_systems: [
-    { icon: 'mdi:calendar-clock', name: 'KALENDER', entity: 'calendar.home', label: 'Heute', color: 'muted', tap_action: { action: 'more-info', entity: 'calendar.home' } },
-    { icon: 'mdi:checkbox-marked-circle-auto-outline', name: 'TODO', entity: 'todo.home', label: 'Aufgaben', color: 'muted', tap_action: { action: 'more-info', entity: 'todo.home' } },
-    { icon: 'mdi:weather-partly-cloudy', name: 'WETTER', entity: 'weather.home', label: 'Vorhersage', color: 'muted', tap_action: { action: 'more-info', entity: 'weather.home' } },
-  ],
+  room_overview_top_tabs: [],
+  room_overview_systems: [],
   room_overview_metrics: [],
   systems: [
     { icon: 'mdi:check-circle', name: 'ALARM', entity: 'alarm_control_panel.home_alarm', label: 'Nicht scharf', color: 'muted', tap_action: { action: 'more-info', entity: 'alarm_control_panel.home_alarm' } },
@@ -3048,7 +3117,7 @@ function mergeConfig(config) {
     home_systems: config.home_systems || DEFAULT_CONFIG.home_systems || config.room_overview_systems || DEFAULT_CONFIG.room_overview_systems,
     home_metrics: config.home_metrics || DEFAULT_CONFIG.home_metrics || config.room_overview_metrics || DEFAULT_CONFIG.room_overview_metrics,
     home_sidebar_widgets: config.home_sidebar_widgets || DEFAULT_CONFIG.home_sidebar_widgets,
-    left_sidebar_widgets: config.left_sidebar_widgets ?? DEFAULT_CONFIG.left_sidebar_widgets,
+    left_sidebar_widgets: config.left_sidebar_widgets === false ? false : normalizeSidebarWidgets(config.left_sidebar_widgets || DEFAULT_CONFIG.left_sidebar_widgets),
     home_weather: config.home_weather || DEFAULT_CONFIG.home_weather,
     home_calendar: config.home_calendar || DEFAULT_CONFIG.home_calendar,
     weather_entity: config.weather_entity || DEFAULT_CONFIG.weather_entity,
@@ -3273,6 +3342,18 @@ function weatherConditionLabel(condition = '') {
   return labels[condition] || condition || 'Wetter';
 }
 
+function normalizeSidebarWidgets(widgets = []) {
+  return [...new Set((Array.isArray(widgets) ? widgets : []).filter((widget) => ['weather', 'calendar'].includes(widget)))];
+}
+
+function formatGermanDate(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value || '');
+  }
+  return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 function forecastDay(value) {
   if (!value) return '—';
   try {
@@ -3294,7 +3375,7 @@ function forecastTemp(entry, unit) {
 }
 
 function formatToday() {
-  return new Date().toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' });
+  return formatGermanDate(new Date());
 }
 
 function formatDateRange(start, end) {
@@ -3306,7 +3387,7 @@ function formatDateRange(start, end) {
     if (!value) return '';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return String(value);
-    return date.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return `${formatGermanDate(date)} ${date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
   };
   return [format(start), format(end)].filter(Boolean).join(' – ');
 }
