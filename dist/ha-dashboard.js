@@ -2043,7 +2043,7 @@ class HaNeoDashboardEditor extends HTMLElement {
     const dataAttribute = group === 'item' ? 'data-item-field' : 'data-config-field';
     const domainAttribute = domain ? `data-entity-domain="${escapeAttr(domain)}"` : '';
     const placeholder = domain ? `${domain}.deine_entity` : 'domain.entity_id';
-    const fallbackInput = group === 'item' ? '' : `
+    const fallbackInput = `
           <input
             class="entity-picker-fallback"
             type="text"
@@ -2434,10 +2434,12 @@ class HaNeoDashboardEditor extends HTMLElement {
       selector.value = this.controlValueForPicker(selector) || '';
       selector.label = '';
       if (!selector.haNeoValueListenerAttached) {
-        selector.addEventListener('value-changed', (event) => {
+        const onSelectorValue = (event) => {
           this.handleInput(event);
           event.haNeoHandled = true;
-        });
+        };
+        selector.addEventListener('value-changed', onSelectorValue);
+        selector.addEventListener('change', onSelectorValue);
         selector.haNeoValueListenerAttached = true;
       }
     });
@@ -3431,12 +3433,25 @@ function formatDateRange(start, end) {
 
 function controlEventValue(event, target) {
   const detailValue = event?.detail?.value;
-  const value = detailValue === undefined ? target?.value : detailValue;
+  const primaryValue = detailValue === undefined ? undefined : selectorValue(detailValue);
+  if (primaryValue) {
+    return primaryValue;
+  }
+
+  const targetValue = selectorValue(target?.value);
+  if (targetValue || detailValue === undefined) {
+    return targetValue;
+  }
+
+  return '';
+}
+
+function selectorValue(value) {
   if (Array.isArray(value)) {
-    return value[0] || '';
+    return selectorValue(value[0]);
   }
   if (value && typeof value === 'object') {
-    return value.entity_id || value.entity || value.value || value.id || '';
+    return selectorValue(value.entity_id ?? value.entity ?? value.value ?? value.id ?? value.target?.entity_id);
   }
   return value ?? '';
 }
