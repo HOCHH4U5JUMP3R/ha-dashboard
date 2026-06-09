@@ -2047,12 +2047,12 @@ class HaNeoDashboardEditor extends HTMLElement {
       <label class="field picker-field">
         <span>${escapeHtml(label)}</span>
         <div class="entity-picker-stack">
-          <ha-entity-picker
-            allow-custom-entity
+          <ha-selector
+            class="ha-entity-selector"
+            data-entity-selector="true"
             ${dataAttribute}="${escapeAttr(field)}"
             ${domainAttribute}
-            value="${escapeAttr(value)}"
-          ></ha-entity-picker>
+          ></ha-selector>
           <input
             class="entity-picker-fallback"
             type="text"
@@ -2420,6 +2420,13 @@ class HaNeoDashboardEditor extends HTMLElement {
       return;
     }
 
+    this.shadowRoot.querySelectorAll('ha-selector[data-entity-selector]').forEach((selector) => {
+      selector.hass = this._hass;
+      selector.value = this.controlValueForPicker(selector) || '';
+      selector.selector = { entity: selector.dataset.entityDomain ? { domain: selector.dataset.entityDomain } : {} };
+      selector.label = '';
+    });
+
     this.shadowRoot.querySelectorAll('ha-entity-picker').forEach((picker) => {
       picker.hass = this._hass;
       picker.value = this.controlValueForPicker(picker) || '';
@@ -2645,7 +2652,7 @@ class HaNeoDashboardEditor extends HTMLElement {
       .widget-editor h4 { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; color: var(--primary-text-color); }
       .picker-field { gap: 8px; }
       .entity-picker-stack { display: grid; gap: 6px; min-width: 0; }
-      ha-entity-picker, ha-icon-picker { min-width: 0; }
+      ha-selector, ha-entity-picker, ha-icon-picker { min-width: 0; }
       .entity-picker-fallback { width: 100%; }
       .nav-editor-layout { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(280px, 1.2fr); gap: 12px; }
       .item-list button ha-icon { width: 18px; height: 18px; margin-right: 6px; vertical-align: middle; }
