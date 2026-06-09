@@ -2430,7 +2430,7 @@ class HaNeoDashboardEditor extends HTMLElement {
 
     this.shadowRoot.querySelectorAll('ha-selector[data-entity-selector]').forEach((selector) => {
       selector.hass = this._hass;
-      selector.selector = { entity: { custom_value: true, ...(selector.dataset.entityDomain ? { domain: selector.dataset.entityDomain } : {}) } };
+      selector.selector = { entity: selector.dataset.entityDomain ? { domain: selector.dataset.entityDomain } : {} };
       selector.value = this.controlValueForPicker(selector) || '';
       selector.label = '';
       if (!selector.haNeoValueListenerAttached) {
