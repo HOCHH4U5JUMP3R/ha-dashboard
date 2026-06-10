@@ -2042,28 +2042,15 @@ class HaNeoDashboardEditor extends HTMLElement {
   entityControl(field, label, value, domain, group = 'config') {
     const dataAttribute = group === 'item' ? 'data-item-field' : 'data-config-field';
     const domainAttribute = domain ? `data-entity-domain="${escapeAttr(domain)}"` : '';
-    const placeholder = domain ? `${domain}.deine_entity` : 'domain.entity_id';
-    const fallbackInput = group === 'item' ? '' : `
-          <input
-            class="entity-picker-fallback"
-            type="text"
-            value="${escapeAttr(value)}"
-            placeholder="${escapeAttr(placeholder)}"
-            autocomplete="off"
-            ${dataAttribute}="${escapeAttr(field)}"
-            ${domainAttribute}
-          >`;
     return `
       <label class="field picker-field">
         <span>${escapeHtml(label)}</span>
-        <div class="entity-picker-stack">
-          <ha-selector
-            class="ha-entity-selector"
-            data-entity-selector="true"
-            ${dataAttribute}="${escapeAttr(field)}"
-            ${domainAttribute}
-          ></ha-selector>${fallbackInput}
-        </div>
+        <ha-entity-picker
+          value="${escapeAttr(value)}"
+          allow-custom-entity
+          ${dataAttribute}="${escapeAttr(field)}"
+          ${domainAttribute}
+        ></ha-entity-picker>
       </label>
     `;
   }
@@ -2445,8 +2432,18 @@ class HaNeoDashboardEditor extends HTMLElement {
     this.shadowRoot.querySelectorAll('ha-entity-picker').forEach((picker) => {
       picker.hass = this._hass;
       picker.value = this.controlValueForPicker(picker) || '';
+      picker.allowCustomEntity = true;
       if (picker.dataset.entityDomain) {
         picker.includeDomains = [picker.dataset.entityDomain];
+      } else {
+        picker.includeDomains = undefined;
+      }
+      if (!picker.haNeoValueListenerAttached) {
+        picker.addEventListener('value-changed', (event) => {
+          this.handleInput(event);
+          event.haNeoHandled = true;
+        });
+        picker.haNeoValueListenerAttached = true;
       }
     });
 
