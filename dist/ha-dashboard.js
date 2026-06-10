@@ -1876,7 +1876,7 @@ class HaNeoDashboardEditor extends HTMLElement {
 
   entityOptions(domain, currentValue = '') {
     const states = Object.values(this._hass?.states || {})
-      .filter((state) => state.entity_id?.startsWith(`${domain}.`))
+      .filter((state) => !domain || state.entity_id?.startsWith(`${domain}.`))
       .map((state) => ({
         value: state.entity_id,
         label: `${state.attributes?.friendly_name || state.entity_id} (${state.entity_id})`,
@@ -1888,7 +1888,7 @@ class HaNeoDashboardEditor extends HTMLElement {
     }
 
     if (!states.length) {
-      states.push({ value: '', label: `Keine ${domain}.* Entity gefunden - unten manuell eintragen` });
+      states.push({ value: '', label: domain ? `Keine ${domain}.* Entity gefunden` : 'Keine Entity gefunden' });
     }
 
     return states;
@@ -2042,30 +2042,28 @@ class HaNeoDashboardEditor extends HTMLElement {
   entityControl(field, label, value, domain, group = 'config') {
     const dataAttribute = group === 'item' ? 'data-item-field' : 'data-config-field';
     const domainAttribute = domain ? `data-entity-domain="${escapeAttr(domain)}"` : '';
-    const placeholder = domain ? `${domain}.deine_entity` : 'domain.entity_id';
-    const fallbackInput = group === 'item' ? '' : `
-          <input
-            class="entity-picker-fallback"
-            type="text"
-            value="${escapeAttr(value)}"
-            placeholder="${escapeAttr(placeholder)}"
-            autocomplete="off"
-            ${dataAttribute}="${escapeAttr(field)}"
-            ${domainAttribute}
-          >`;
     return `
       <label class="field picker-field">
         <span>${escapeHtml(label)}</span>
-        <div class="entity-picker-stack">
-          <ha-selector
-            class="ha-entity-selector"
-            data-entity-selector="true"
-            ${dataAttribute}="${escapeAttr(field)}"
-            ${domainAttribute}
-          ></ha-selector>${fallbackInput}
-        </div>
+        <ha-form
+          class="ha-editor-form entity-form"
+          data-ha-form-control="true"
+          data-form-kind="entity"
+          ${dataAttribute}="${escapeAttr(field)}"
+          ${domainAttribute}
+        ></ha-form>
       </label>
     `;
+  }
+
+  entityFormSchema(domain) {
+    return [{
+      name: 'value',
+      required: false,
+      selector: {
+        entity: domain ? { filter: { domain } } : {},
+      },
+    }];
   }
 
   iconControl(field, label, value, group = 'item') {
@@ -2428,25 +2426,18 @@ class HaNeoDashboardEditor extends HTMLElement {
       return;
     }
 
-    this.shadowRoot.querySelectorAll('ha-selector[data-entity-selector]').forEach((selector) => {
-      selector.hass = this._hass;
-      selector.selector = { entity: selector.dataset.entityDomain ? { domain: selector.dataset.entityDomain } : {} };
-      selector.value = this.controlValueForPicker(selector) || '';
-      selector.label = '';
-      if (!selector.haNeoValueListenerAttached) {
-        selector.addEventListener('value-changed', (event) => {
+    this.shadowRoot.querySelectorAll('ha-form[data-ha-form-control]').forEach((form) => {
+      form.hass = this._hass;
+      form.schema = form.dataset.formKind === 'entity' ? this.entityFormSchema(form.dataset.entityDomain || '') : [];
+      form.data = { value: this.controlValueForPicker(form) || '' };
+      form.computeLabel = () => '';
+      form.computeHelper = () => '';
+      if (!form.haNeoValueListenerAttached) {
+        form.addEventListener('value-changed', (event) => {
           this.handleInput(event);
           event.haNeoHandled = true;
         });
-        selector.haNeoValueListenerAttached = true;
-      }
-    });
-
-    this.shadowRoot.querySelectorAll('ha-entity-picker').forEach((picker) => {
-      picker.hass = this._hass;
-      picker.value = this.controlValueForPicker(picker) || '';
-      if (picker.dataset.entityDomain) {
-        picker.includeDomains = [picker.dataset.entityDomain];
+        form.haNeoValueListenerAttached = true;
       }
     });
 
@@ -2667,7 +2658,8 @@ class HaNeoDashboardEditor extends HTMLElement {
       .widget-editor h4 { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; color: var(--primary-text-color); }
       .picker-field { gap: 8px; }
       .entity-picker-stack { display: grid; gap: 6px; min-width: 0; }
-      ha-selector, ha-entity-picker, ha-icon-picker { min-width: 0; }
+      ha-selector, ha-entity-picker, ha-form, ha-icon-picker { min-width: 0; }
+      .ha-editor-form { display: block; width: 100%; }
       .entity-picker-fallback { width: 100%; }
       .nav-editor-layout { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(280px, 1.2fr); gap: 12px; }
       .item-list button ha-icon { width: 18px; height: 18px; margin-right: 6px; vertical-align: middle; }
