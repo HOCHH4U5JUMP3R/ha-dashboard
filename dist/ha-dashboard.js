@@ -1876,7 +1876,7 @@ class HaNeoDashboardEditor extends HTMLElement {
 
   entityOptions(domain, currentValue = '') {
     const states = Object.values(this._hass?.states || {})
-      .filter((state) => state.entity_id?.startsWith(`${domain}.`))
+      .filter((state) => !domain || state.entity_id?.startsWith(`${domain}.`))
       .map((state) => ({
         value: state.entity_id,
         label: `${state.attributes?.friendly_name || state.entity_id} (${state.entity_id})`,
@@ -1888,7 +1888,7 @@ class HaNeoDashboardEditor extends HTMLElement {
     }
 
     if (!states.length) {
-      states.push({ value: '', label: `Keine ${domain}.* Entity gefunden - unten manuell eintragen` });
+      states.push({ value: '', label: domain ? `Keine ${domain}.* Entity gefunden` : 'Keine Entity gefunden' });
     }
 
     return states;
@@ -2042,28 +2042,16 @@ class HaNeoDashboardEditor extends HTMLElement {
   entityControl(field, label, value, domain, group = 'config') {
     const dataAttribute = group === 'item' ? 'data-item-field' : 'data-config-field';
     const domainAttribute = domain ? `data-entity-domain="${escapeAttr(domain)}"` : '';
-    const placeholder = domain ? `${domain}.deine_entity` : 'domain.entity_id';
-    const fallbackInput = group === 'item' ? '' : `
-          <input
-            class="entity-picker-fallback"
-            type="text"
-            value="${escapeAttr(value)}"
-            placeholder="${escapeAttr(placeholder)}"
-            autocomplete="off"
-            ${dataAttribute}="${escapeAttr(field)}"
-            ${domainAttribute}
-          >`;
     return `
       <label class="field picker-field">
         <span>${escapeHtml(label)}</span>
-        <div class="entity-picker-stack">
-          <ha-selector
-            class="ha-entity-selector"
-            data-entity-selector="true"
-            ${dataAttribute}="${escapeAttr(field)}"
-            ${domainAttribute}
-          ></ha-selector>${fallbackInput}
-        </div>
+        <ha-selector
+          class="ha-entity-selector"
+          data-entity-selector="true"
+          data-allow-custom-entity="true"
+          ${dataAttribute}="${escapeAttr(field)}"
+          ${domainAttribute}
+        ></ha-selector>
       </label>
     `;
   }
@@ -2429,9 +2417,21 @@ class HaNeoDashboardEditor extends HTMLElement {
     }
 
     this.shadowRoot.querySelectorAll('ha-selector[data-entity-selector]').forEach((selector) => {
+      const value = this.controlValueForPicker(selector) || '';
+      const domain = selector.dataset.entityDomain || '';
+      const options = this.entityOptions(domain, value)
+        .filter((option) => option.value)
+        .map((option) => ({ value: option.value, label: option.label }));
+
       selector.hass = this._hass;
-      selector.selector = { entity: selector.dataset.entityDomain ? { domain: selector.dataset.entityDomain } : {} };
-      selector.value = this.controlValueForPicker(selector) || '';
+      selector.selector = {
+        select: {
+          options,
+          custom_value: true,
+          mode: 'dropdown',
+        },
+      };
+      selector.value = value;
       selector.label = '';
       if (!selector.haNeoValueListenerAttached) {
         selector.addEventListener('value-changed', (event) => {
@@ -2439,14 +2439,6 @@ class HaNeoDashboardEditor extends HTMLElement {
           event.haNeoHandled = true;
         });
         selector.haNeoValueListenerAttached = true;
-      }
-    });
-
-    this.shadowRoot.querySelectorAll('ha-entity-picker').forEach((picker) => {
-      picker.hass = this._hass;
-      picker.value = this.controlValueForPicker(picker) || '';
-      if (picker.dataset.entityDomain) {
-        picker.includeDomains = [picker.dataset.entityDomain];
       }
     });
 
