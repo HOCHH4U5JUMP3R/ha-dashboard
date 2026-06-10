@@ -2042,16 +2042,26 @@ class HaNeoDashboardEditor extends HTMLElement {
   entityControl(field, label, value, domain, group = 'config') {
     const dataAttribute = group === 'item' ? 'data-item-field' : 'data-config-field';
     const domainAttribute = domain ? `data-entity-domain="${escapeAttr(domain)}"` : '';
+    const placeholder = domain ? `${domain}.deine_entity` : 'domain.entity_id';
+    const listId = `entity-options-${group}-${field}-${domain || 'all'}`.replace(/[^a-z0-9_-]/gi, '-');
+    const options = this.entityOptions(domain, value).filter((option) => option.value);
+
     return `
       <label class="field picker-field">
         <span>${escapeHtml(label)}</span>
-        <ha-selector
-          class="ha-entity-selector"
-          data-entity-selector="true"
-          data-allow-custom-entity="true"
+        <input
+          class="entity-combobox"
+          type="text"
+          value="${escapeAttr(value)}"
+          placeholder="${escapeAttr(placeholder)}"
+          autocomplete="off"
+          list="${escapeAttr(listId)}"
           ${dataAttribute}="${escapeAttr(field)}"
           ${domainAttribute}
-        ></ha-selector>
+        >
+        <datalist id="${escapeAttr(listId)}">
+          ${options.map((option) => `<option value="${escapeAttr(option.value)}" label="${escapeAttr(option.label)}"></option>`).join('')}
+        </datalist>
       </label>
     `;
   }
@@ -2415,32 +2425,6 @@ class HaNeoDashboardEditor extends HTMLElement {
     if (!this.shadowRoot) {
       return;
     }
-
-    this.shadowRoot.querySelectorAll('ha-selector[data-entity-selector]').forEach((selector) => {
-      const value = this.controlValueForPicker(selector) || '';
-      const domain = selector.dataset.entityDomain || '';
-      const options = this.entityOptions(domain, value)
-        .filter((option) => option.value)
-        .map((option) => ({ value: option.value, label: option.label }));
-
-      selector.hass = this._hass;
-      selector.selector = {
-        select: {
-          options,
-          custom_value: true,
-          mode: 'dropdown',
-        },
-      };
-      selector.value = value;
-      selector.label = '';
-      if (!selector.haNeoValueListenerAttached) {
-        selector.addEventListener('value-changed', (event) => {
-          this.handleInput(event);
-          event.haNeoHandled = true;
-        });
-        selector.haNeoValueListenerAttached = true;
-      }
-    });
 
     this.shadowRoot.querySelectorAll('ha-icon-picker').forEach((picker) => {
       picker.hass = this._hass;
