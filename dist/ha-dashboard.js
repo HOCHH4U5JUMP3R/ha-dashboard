@@ -2042,28 +2042,28 @@ class HaNeoDashboardEditor extends HTMLElement {
   entityControl(field, label, value, domain, group = 'config') {
     const dataAttribute = group === 'item' ? 'data-item-field' : 'data-config-field';
     const domainAttribute = domain ? `data-entity-domain="${escapeAttr(domain)}"` : '';
-    const placeholder = domain ? `${domain}.deine_entity` : 'domain.entity_id';
-    const listId = `entity-options-${group}-${field}-${domain || 'all'}`.replace(/[^a-z0-9_-]/gi, '-');
-    const options = this.entityOptions(domain, value).filter((option) => option.value);
-
     return `
       <label class="field picker-field">
         <span>${escapeHtml(label)}</span>
-        <input
-          class="entity-combobox"
-          type="text"
-          value="${escapeAttr(value)}"
-          placeholder="${escapeAttr(placeholder)}"
-          autocomplete="off"
-          list="${escapeAttr(listId)}"
+        <ha-form
+          class="ha-editor-form entity-form"
+          data-ha-form-control="true"
+          data-form-kind="entity"
           ${dataAttribute}="${escapeAttr(field)}"
           ${domainAttribute}
-        >
-        <datalist id="${escapeAttr(listId)}">
-          ${options.map((option) => `<option value="${escapeAttr(option.value)}" label="${escapeAttr(option.label)}"></option>`).join('')}
-        </datalist>
+        ></ha-form>
       </label>
     `;
+  }
+
+  entityFormSchema(domain) {
+    return [{
+      name: 'value',
+      required: false,
+      selector: {
+        entity: domain ? { filter: { domain } } : {},
+      },
+    }];
   }
 
   iconControl(field, label, value, group = 'item') {
@@ -2426,6 +2426,21 @@ class HaNeoDashboardEditor extends HTMLElement {
       return;
     }
 
+    this.shadowRoot.querySelectorAll('ha-form[data-ha-form-control]').forEach((form) => {
+      form.hass = this._hass;
+      form.schema = form.dataset.formKind === 'entity' ? this.entityFormSchema(form.dataset.entityDomain || '') : [];
+      form.data = { value: this.controlValueForPicker(form) || '' };
+      form.computeLabel = () => '';
+      form.computeHelper = () => '';
+      if (!form.haNeoValueListenerAttached) {
+        form.addEventListener('value-changed', (event) => {
+          this.handleInput(event);
+          event.haNeoHandled = true;
+        });
+        form.haNeoValueListenerAttached = true;
+      }
+    });
+
     this.shadowRoot.querySelectorAll('ha-icon-picker').forEach((picker) => {
       picker.hass = this._hass;
       picker.value = this.controlValueForPicker(picker) || '';
@@ -2643,7 +2658,8 @@ class HaNeoDashboardEditor extends HTMLElement {
       .widget-editor h4 { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; color: var(--primary-text-color); }
       .picker-field { gap: 8px; }
       .entity-picker-stack { display: grid; gap: 6px; min-width: 0; }
-      ha-selector, ha-entity-picker, ha-icon-picker { min-width: 0; }
+      ha-selector, ha-entity-picker, ha-form, ha-icon-picker { min-width: 0; }
+      .ha-editor-form { display: block; width: 100%; }
       .entity-picker-fallback { width: 100%; }
       .nav-editor-layout { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(280px, 1.2fr); gap: 12px; }
       .item-list button ha-icon { width: 18px; height: 18px; margin-right: 6px; vertical-align: middle; }
